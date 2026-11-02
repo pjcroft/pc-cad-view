@@ -61,7 +61,9 @@ async function openFile(file: File) {
       const want = fu === 'in' || fu === 'ft' ? 'in' : 'mm';
       if (want !== getUnit()) { setUnit(want); toast(`Drawn in ${UNIT_NAME[fu] ?? fu} — showing ${want === 'in' ? 'inches' : 'millimetres'}. Switch any time with the mm / inch toggle.`, true, 6000); }
     }
+    viewer.setPickOnce(null);
     viewer.setModel(res.root);
+    viewer.onReorient();
     $('drop').classList.add('hidden');
     buildTree(res.root);
     showFileInfo(file, res.format, res.engine, performance.now() - t0, res.header);
@@ -151,7 +153,14 @@ function showSelection(p: PickInfo | null) {
       <button class="sbtn" id="selHide">Hide</button>
       <button class="sbtn" id="selFit">Zoom to</button>
     </div>
+    ${p.normal ? `<div class="sel-acts face-acts"><span class="muted small">Picked face:</span><button class="sbtn" id="faceNormal" title="Look straight at this face">Normal to</button><button class="sbtn" id="faceDown" title="Rotate the model so this face sits on the floor">Face down</button><button class="sbtn" id="faceUp" title="Rotate the model so this face points up">Face up</button></div>` : ''}
     ${partOf(m)?.flat ? `<div class="sel-acts"><button class="sbtn acc" id="selNest">Add to nesting →</button></div>` : ''}`;
+  if (p.normal) {
+    const n = p.normal.clone();
+    $('faceNormal').onclick = () => viewer.normalTo(n);
+    $('faceDown').onclick = () => viewer.faceDown(n);
+    $('faceUp').onclick = () => viewer.faceUp(n);
+  }
   const nb = document.getElementById('selNest');
   if (nb) nb.onclick = () => { const pt = partOf(m); if (pt) { nest.toggle(pt.id, true); setMode('nest'); } };
   $('selIso').onclick = () => { viewer.isolate(m); syncTreeVis(); viewer.fit(); };
@@ -370,6 +379,7 @@ tb.querySelectorAll<HTMLButtonElement>('[data-tool]').forEach((b) => b.onclick =
 
 function setTool(t: string | null) {
   if (t && !viewer.model) return;
+  if (t) viewer.setPickOnce(null);
   activeTool = t;
   tb.querySelectorAll<HTMLButtonElement>('[data-tool]').forEach((b) => b.classList.toggle('tool-on', b.dataset.tool === t));
   ['section', 'explode', 'measure'].forEach((k) => ($('pop-' + k).hidden = k !== t));
@@ -379,6 +389,36 @@ function setTool(t: string | null) {
   $('measHint').textContent = 'Click the first point';
   if (t !== 'explode') { viewer.explode(0); $<HTMLInputElement>('expPos').value = '0'; $('expVal').textContent = '0%'; }
 }
+
+/* face tools: normal-to and re-orientation */
+const FACE_TOOLS = {
+  normal: { label: 'Normal to', hint: 'Click a face to look straight at it', run: (p: PickInfo) => viewer.normalTo(p.normal!) },
+  down: { label: 'Face down', hint: 'Click the face that should sit on the floor', run: (p: PickInfo) => viewer.faceDown(p.normal!) },
+} as const;
+type FaceTool = keyof typeof FACE_TOOLS;
+let pendingFace: FaceTool | null = null;
+
+function faceTool(kind: FaceTool) {
+  if (!viewer.model) return;
+  if (pendingFace === kind) { viewer.setPickOnce(null); return; } // second press cancels
+  // a face picked by clicking in the 3D view? use it straight away
+  if (lastPick?.normal && viewer.selectedMesh()) { FACE_TOOLS[kind].run(lastPick); return; }
+  setTool(null);
+  pendingFace = kind;
+  $('pickLbl').textContent = FACE_TOOLS[kind].label;
+  $('pickHint').textContent = FACE_TOOLS[kind].hint;
+  viewer.setPickOnce((p) => FACE_TOOLS[kind].run(p));
+}
+viewer.onPickModeChange = (on) => {
+  $('pop-pick').hidden = !on;
+  if (!on) pendingFace = null;
+  tb.querySelectorAll<HTMLButtonElement>('[data-face]').forEach((b) => b.classList.toggle('tool-on', on && b.dataset.face === pendingFace));
+};
+viewer.onReorient = () => { tb.querySelector<HTMLButtonElement>('[data-act=resetori]')!.disabled = !viewer.isReoriented(); };
+tb.querySelectorAll<HTMLButtonElement>('[data-face]').forEach((b) => b.onclick = () => faceTool(b.dataset.face as FaceTool));
+tb.querySelector<HTMLButtonElement>('[data-act=flip]')!.onclick = () => viewer.model && viewer.flip();
+tb.querySelector<HTMLButtonElement>('[data-act=resetori]')!.onclick = () => viewer.resetOrientation();
+$('pickCancel').onclick = () => viewer.setPickOnce(null);
 
 /* section */
 let secAxis: Axis = 'z', secFlip = false;
@@ -442,7 +482,9 @@ addEventListener('keydown', (e) => {
   if (k === 's') click('[data-tool=section]');
   if (k === 'v') click('[data-tool=explode]');
   if (k === 'm') click('[data-tool=measure]');
-  if (k === 'escape') { setTool(null); viewer.select(null); }
+  if (k === 'escape') { viewer.setPickOnce(null); setTool(null); viewer.select(null); }
+  if (k === '8') faceTool('normal');
+  if (k === 'd') faceTool('down');
   if (k === 'o') fileIn.click();
   if (k === 'n') setMode($('nestScreen').hidden ? 'nest' : 'view');
   if (k === 'u') setUnit(getUnit() === 'mm' ? 'in' : 'mm');

@@ -47,6 +47,7 @@
     <nav class="toolbar" id="toolbar" aria-label="View tools">
       <div class="grp">
         <button data-act="fit" title="Fit all (F)"><svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
+        <button data-face="normal" title="Normal to face: look straight at a face (8)"><svg viewBox="0 0 24 24"><path d="M3 9l7-4 7 4v8l-7 4-7-4z" opacity=".45"/><path d="M10 13l10-6m0 0h-4.5M20 7v4.5"/><circle cx="10" cy="13" r="1.6" fill="currentColor"/></svg></button>
         <button data-view="iso" title="Isometric (0)"><svg viewBox="0 0 24 24"><path d="M12 3 20 7.5v9L12 21l-8-4.5v-9z"/><path d="M12 12l8-4.5M12 12 4 7.5M12 12v9"/></svg></button>
         <button data-view="front" title="Front (1)" class="txt">F</button>
         <button data-view="top" title="Top (7)" class="txt">T</button>
@@ -61,6 +62,11 @@
         <button data-tool="section" title="Section plane (S)"><svg viewBox="0 0 24 24"><path d="M4 7l8-4 8 4v10l-8 4-8-4z" opacity=".45"/><path d="M2 13l10-4 10 4-10 4z"/></svg></button>
         <button data-tool="explode" title="Explode (V)"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="6" height="6" rx="1"/><path d="M5 5l2.5 2.5M19 5l-2.5 2.5M5 19l2.5-2.5M19 19l-2.5-2.5"/></svg></button>
         <button data-tool="measure" title="Measure distance (M)"><svg viewBox="0 0 24 24"><path d="M3 17 17 3l4 4L7 21z"/><path d="M7 13l2 2M10 10l2 2M13 7l2 2"/></svg></button>
+      </div>
+      <div class="grp">
+        <button data-face="down" title="Face down: click the face that should sit on the floor, e.g. flanges up (D)"><svg viewBox="0 0 24 24"><path d="M6 4h12v4H6zM6 8l2 5h8l2-5"/><path d="M12 14v5m0 0-2.5-2.5M12 19l2.5-2.5M4 22h16"/></svg></button>
+        <button data-act="flip" title="Flip model upside down"><svg viewBox="0 0 24 24"><path d="M4 10a8 8 0 0 1 14-4.5L20 8M20 14a8 8 0 0 1-14 4.5L4 16"/><path d="M20 3.5V8h-4.5M4 20.5V16h4.5"/></svg></button>
+        <button data-act="resetori" title="Reset to the file's orientation" disabled><svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 2.6-5.9L4 8.5"/><path d="M4 3.5v5h5"/></svg></button>
       </div>
       <div class="grp">
         <button data-act="shot" title="Save screenshot (PNG)"><svg viewBox="0 0 24 24"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg></button>
@@ -80,6 +86,9 @@
     <div class="pop" id="pop-explode" hidden>
       <div class="pop-row"><span class="lbl">Explode</span><span class="val" id="expVal">0%</span></div>
       <input type="range" id="expPos" min="0" max="100" value="0">
+    </div>
+    <div class="pop" id="pop-pick" hidden>
+      <div class="pop-row"><span class="lbl" id="pickLbl">Normal to</span><span class="val" id="pickHint">Click a face</span><button class="ibtn" id="pickCancel" title="Cancel (Esc)"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
     </div>
     <div class="pop" id="pop-measure" hidden>
       <div class="pop-row"><span class="lbl">Measure</span><span class="val" id="measHint">Click the first point</span></div>

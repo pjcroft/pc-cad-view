@@ -6,6 +6,8 @@ Files are processed in the visitor's browser; nothing is uploaded.
 ## Features (v0.1)
 - Open **STEP / IGES / BREP** (OpenCascade WASM) and **STL / OBJ / glTF / 3MF**
 - Assembly tree + parts list with quantities; filter, show/hide, isolate
+- **Normal To** (look straight at a clicked face), **Face down / Face up** (re-orient the model so a face sits
+  on the floor — fixes sheet metal drawn upside down), flip 180°, reset orientation
 - Section plane, explode, point-to-point measure, edges / wireframe / X-ray, PNG screenshot
 - **STEP metadata**: material, density, thickness, part number, SolidWorks/Inventor custom properties, source CAD system
 - **Sheet metal**: auto thickness detection, thickness at a clicked point, flat blank X × Y

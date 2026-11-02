@@ -131,6 +131,8 @@ export class Viewer {
     this.model = root;
     this.scene.add(root);
     root.updateMatrixWorld(true);
+    root.userData.origQuat = root.quaternion.clone();
+    root.userData.origPos = root.position.clone();
 
     root.traverse((o) => {
       const m = o as THREE.Mesh;
@@ -444,6 +446,82 @@ export class Viewer {
     }
   }
 
+  /* ---------------- orientation ---------------- */
+  private pickOnce: ((p: PickInfo) => void) | null = null;
+  onPickModeChange: (on: boolean) => void = () => {};
+
+  /** Next click on a face calls `cb` instead of the normal selection behaviour. */
+  setPickOnce(cb: ((p: PickInfo) => void) | null) {
+    this.pickOnce = cb;
+    this.renderer.domElement.style.cursor = cb ? 'crosshair' : this.measuring ? 'crosshair' : '';
+    this.onPickModeChange(!!cb);
+  }
+
+  /** Camera looks straight at a face (along its normal), framing the model. */
+  normalTo(n: THREE.Vector3) {
+    const dir = n.clone().normalize();
+    // OrbitControls can't look exactly along its up axis (Z): nudge a hair off it
+    if (Math.abs(dir.z) > 0.9999) dir.set(0, -1e-4 * Math.sign(dir.z || 1), Math.sign(dir.z || 1)).normalize();
+    this.fitTo(dir, true);
+  }
+
+  /** Rotate the whole model about its centre so world direction `from` points along `to`. */
+  rotateModel(from: THREE.Vector3, to: THREE.Vector3) {
+    const q = new THREE.Quaternion().setFromUnitVectors(from.clone().normalize(), to.clone().normalize());
+    if (from.clone().normalize().dot(to.clone().normalize()) < -0.9999) {
+      // opposite vectors: rotate 180° about any axis perpendicular to `from`
+      const ax = Math.abs(from.x) < 0.9 ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 1, 0);
+      q.setFromAxisAngle(ax.cross(from).normalize(), Math.PI);
+    }
+    this.applyModelRotation(q);
+  }
+
+  /** Put a face flat on the floor (its outward normal pointing down) — e.g. sheet metal flanges up. */
+  faceDown(n: THREE.Vector3) { this.rotateModel(n, new THREE.Vector3(0, 0, -1)); }
+  faceUp(n: THREE.Vector3) { this.rotateModel(n, new THREE.Vector3(0, 0, 1)); }
+  flip() { this.applyModelRotation(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), Math.PI)); }
+
+  resetOrientation() {
+    if (!this.model) return;
+    this.explode(0);
+    this.model.quaternion.copy(this.model.userData.origQuat);
+    this.model.position.copy(this.model.userData.origPos);
+    this.afterReorient();
+  }
+
+  isReoriented(): boolean {
+    if (!this.model) return false;
+    return this.model.quaternion.angleTo(this.model.userData.origQuat) > 1e-4 || this.model.position.distanceTo(this.model.userData.origPos) > 1e-6;
+  }
+
+  private applyModelRotation(q: THREE.Quaternion) {
+    if (!this.model) return;
+    this.explode(0);
+    const c = this.modelCenter.clone();
+    this.model.position.sub(c).applyQuaternion(q).add(c); // pivot about the model centre
+    this.model.quaternion.premultiply(q);
+    this.afterReorient();
+  }
+
+  /** Refresh everything derived from world-space geometry, then show the result. */
+  private afterReorient() {
+    const root = this.model!;
+    root.updateMatrixWorld(true);
+    for (const m of this.meshes) {
+      m.userData.worldCenter = m.geometry.boundingBox!.getCenter(new THREE.Vector3()).applyMatrix4(m.matrixWorld);
+    }
+    this.modelBox.setFromObject(root);
+    this.modelBox.getCenter(this.modelCenter);
+    this.clearMeasure();
+    this.rebuildGrid();
+    this.setSection(this.sectionOn, this.sectionAxis, this.sectionPos, this.sectionFlip);
+    this.lastPick = { point: null, normal: null };
+    if (this.selected) this.onSelect(this.selectedInfo());
+    this.onReorient();
+    this.setView('iso');
+  }
+  onReorient: () => void = () => {};
+
   /** Re-render on-canvas labels (after a units change). */
   refreshLabels() {
     if (this.measurePts.length === 2) this.measureLabel.textContent = lenPrecise(this.measurePts[0].distanceTo(this.measurePts[1]));
@@ -457,6 +535,10 @@ export class Viewer {
       if (e.button !== 0) return;
       if (Math.hypot(e.clientX - this.downAt.x, e.clientY - this.downAt.y) > 4) return; // it was a drag
       const hit = this.pick(e.clientX, e.clientY);
+      if (this.pickOnce) {
+        if (hit && hit.normal) { const cb = this.pickOnce; this.setPickOnce(null); this.select(hit.mesh, hit.point, hit.normal); cb(hit); }
+        return;
+      }
       if (this.measuring) { if (hit) this.addMeasurePoint(hit.point); return; }
       if (hit) this.select(hit.mesh, hit.point, hit.normal);
       else this.select(null);
