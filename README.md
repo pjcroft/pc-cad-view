@@ -3,6 +3,35 @@
 Browser-based 3D CAD viewer for the pjcroft web tools, aimed at sheet metal assemblies.
 Files are processed in the visitor's browser; nothing is uploaded.
 
+## Screenshots
+
+**3D view: sheet metal part with file properties (material, thickness, flat blank)**
+![3D view with sheet metal data](mockup/2-3d-sheet-metal.png)
+
+**Nesting: how many blanks fit on one sheet**
+![Nesting, fill one sheet](mockup/3-nesting-fill-sheet.png)
+
+**Nesting: sheets needed for a production run**
+![Nesting, quantity run](mockup/4-nesting-quantity-run.png)
+
+**Inch-drawn model: detected automatically, shown in inches**
+![Inch model in 3D view](mockup/6-inch-model-3d.png)
+
+<table>
+<tr>
+<td width="50%"><b>Inch nesting on a 120 × 60 in sheet</b><br><img src="mockup/7-inch-nesting.png" alt="Inch nesting"></td>
+<td width="50%"><b>Face down: upside-down part flipped flanges-up</b><br><img src="mockup/8-face-down-flanges-up.png" alt="Face down"></td>
+</tr>
+<tr>
+<td><b>Where the orientation buttons are</b><br><img src="mockup/9-where-are-the-buttons.png" alt="Orientation buttons"></td>
+<td><b>Section view</b><br><img src="mockup/5-section-view.png" alt="Section view"></td>
+</tr>
+<tr>
+<td><b>Start screen</b><br><img src="mockup/1-start.png" alt="Start screen"></td>
+<td></td>
+</tr>
+</table>
+
 ## Features (v0.1)
 - Open **STEP / IGES / BREP** (OpenCascade WASM) and **STL / OBJ / glTF / 3MF**
 - Assembly tree + parts list with quantities; filter, show/hide, isolate
