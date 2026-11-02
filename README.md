@@ -32,7 +32,7 @@ Files are processed in the visitor's browser; nothing is uploaded.
 </tr>
 <tr>
 <td><b>Loading dialog (240-part assembly)</b><br><img src="mockup/11-loading-dialog.png" alt="Loading dialog"></td>
-<td><b>Nesting: click a blank, rotate it (45° shown)</b><br><img src="mockup/12-nesting-rotate-45.png" alt="Nesting rotation"></td>
+<td></td>
 </tr>
 </table>
 
@@ -50,8 +50,6 @@ Files are processed in the visitor's browser; nothing is uploaded.
   (from the file's flat-pattern properties, else automatic unfold with K-factor)
 - **Metric / imperial**: detects the unit a STEP model was drawn in (mm or inch) and switches the display to
   match; mm | inch toggle (key U) converts every length, input and sheet preset. STL/OBJ follow the current unit.
-- **Nesting part rotation**: click a blank on the sheet → Auto / 0–90° presets / any angle / ★ Best (tries
-  every angle); all copies of that part re-nest at the angle, with a before/after count
 - **Nesting**: "how many fit on one sheet" and "sheets for N sets", 90° rotation with per-part lock,
   margin/gap, sheet presets, layout PNG export
 
@@ -80,6 +78,4 @@ so it works from any sub-folder. Add a card to the tools home page linking to `p
 ## Limits
 - SolidWorks / NX / Creo / CATIA native files need a server-side converter (planned); export STEP for now.
 - Unfold is an estimate (straight bends, no reliefs/bend tables); file flat-pattern properties win when present.
-- Nesting packs rectangles; true-shape CAM nesting can fit a few more irregular parts. Because each blank is
-  already squared to its tightest rectangle, angled placements rarely beat Auto here — use them to force an
-  orientation (e.g. grain); ★ Best confirms the optimum.
+- Nesting packs rectangles; true-shape CAM nesting can fit a few more irregular parts.

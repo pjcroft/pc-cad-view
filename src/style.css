@@ -356,27 +356,3 @@ kbd{display:inline-block;min-width:1.7em;text-align:center;font:700 .76rem/1 ui-
 .busy-note{margin:.8rem 0 0;font-size:.82rem;color:var(--muted)}
 .busy-skip{display:block;margin-top:.6rem;font-size:.8rem}
 .busy-skip[hidden]{display:none}
-
-/* ---------- nesting: part rotation ---------- */
-.sheet svg g.np{cursor:pointer}
-.sheet svg g.np:hover rect{stroke:#fff;stroke-opacity:.8}
-.sheet svg g.np.sel rect{stroke:#fff;stroke-width:2px;vector-effect:non-scaling-stroke}
-.sheet svg g.np.sel use{filter:brightness(1.45)}
-.sheet svg.has-sel g.np:not(.sel){opacity:.55}
-.rotbar{position:sticky;top:-1rem;z-index:3;padding:.75rem 1rem;border-radius:14px;background:rgba(17,28,48,.95);backdrop-filter:blur(10px);border:1px solid rgba(245,158,11,.45);box-shadow:0 14px 34px -18px #000;animation:pop .18s ease-out}
-.rotbar[hidden]{display:none}
-.rot-part{display:flex;align-items:center;gap:.55rem;margin-bottom:.55rem;min-width:0}
-.rot-part .sw{width:12px;height:12px;border-radius:3px;flex:none}
-.rot-part b{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.rot-part small{color:var(--muted);font-size:.78rem;white-space:nowrap}
-.rot-ctl{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem}
-.rot-ctl .lbl{font-size:.66rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--tan);margin-right:.2rem}
-.rot-ctl .seg button{padding:.32rem .6rem}
-.rot-ctl .seg button.on{background:rgba(245,158,11,.18);color:var(--accent2)}
-.rot-custom{display:inline-flex;align-items:center;gap:.2rem;color:var(--muted)}
-.rot-custom input{width:62px;background:var(--bg);border:1px solid var(--line);color:var(--text);border-radius:8px;padding:.35rem .45rem;font:inherit;font-size:.85rem}
-.rot-custom input:focus{outline:none;border-color:var(--accent2)}
-#rotClose{margin-left:auto}
-.rot-result{margin:.55rem 0 0;font-size:.82rem;color:var(--muted)}
-.rot-result b{color:var(--accent2)}
-.ang{font-size:.68rem;font-weight:800;color:var(--accent2);background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.35);padding:.02rem .38rem;border-radius:999px;white-space:nowrap}
