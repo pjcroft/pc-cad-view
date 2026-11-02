@@ -23,6 +23,9 @@ export class NestUI {
   private parts: PartType[] = [];
   private mode: 'fill' | 'qty' = 'fill';
   private previewId: string | null = null;
+  private selId: string | null = null;              // part selected on the sheet (rotation bar)
+  private compare: { label: string; value: string; angle: string } | null = null;
+  private geomCache = new Map<string, { w: number; h: number; mx: number; my: number }>();
   private last: NestResult | null = null;
   private timer = 0;
   onCountChange: (n: number) => void = () => {};
@@ -59,6 +62,17 @@ export class NestUI {
     $('nestSheetOnly').onclick = () => { this.parts.forEach((p) => (p.nest = isSheet(p))); this.renderTable(); this.schedule(); };
     $('nestNone').onclick = () => { this.parts.forEach((p) => (p.nest = false)); this.renderTable(); this.schedule(); };
     $('nestPng').onclick = () => this.savePng();
+    // click a blank on a sheet → select that part type for rotation
+    $('sheets').addEventListener('click', (e) => {
+      const g = (e.target as Element).closest('g.np') as SVGGElement | null;
+      if (g) this.selectPart(g.dataset.id!);
+    });
+    $('rotAngles').querySelectorAll<HTMLButtonElement>('button').forEach((b) => b.onclick = () => this.setAngle(b.dataset.a === 'auto' ? null : +b.dataset.a!));
+    $('rotCw').onclick = () => this.setAngle(((this.selPart()?.angle ?? 0) + 15) % 360);
+    $('rotCcw').onclick = () => this.setAngle(((this.selPart()?.angle ?? 0) + 345) % 360);
+    $('rotDeg').addEventListener('change', () => { const v = +$<HTMLInputElement>('rotDeg').value; if (Number.isFinite(v)) this.setAngle(((Math.round(v) % 360) + 360) % 360); });
+    $('rotClose').onclick = () => this.selectPart(null);
+    $('rotBest').onclick = () => this.findBest();
     onUnit((prev) => {
       // convert what's typed in the length boxes, then repaint everything
       for (const id of LEN_INPUTS) { const mm = fromDisp(+$<HTMLInputElement>(id).value || 0, prev); this.setLen(id, mm); }
@@ -88,6 +102,8 @@ export class NestUI {
   setParts(parts: PartType[]) {
     this.parts = parts;
     this.previewId = null;
+    this.selId = null;
+    this.geomCache.clear();
     this.renderTable();
     this.schedule();
   }
@@ -122,7 +138,7 @@ export class NestUI {
       row.innerHTML = `
         <input type="checkbox" ${p.nest ? 'checked' : ''} ${p.flat ? '' : 'disabled'} title="Include in nest">
         <span class="sw" style="background:${p.nest ? p.color : p.swatch}"></span>
-        <span class="nm"><b title="${esc(p.name)}">${esc(p.name)}</b><small>${p.thickness ? `<span class="thk">t ${r1(p.thickness)} ${uLabel()}</span>` : ''}${p.material ? `<span class="mat" title="${esc(p.material)}">${esc(p.material)}</span>` : ''}<span>×${p.qty} in model</span></small></span>
+        <span class="nm"><b title="${esc(p.name)}">${esc(p.name)}</b><small>${p.thickness ? `<span class="thk">t ${r1(p.thickness)} ${uLabel()}</span>` : ''}${p.material ? `<span class="mat" title="${esc(p.material)}">${esc(p.material)}</span>` : ''}<span>×${p.qty} in model</span>${p.angle !== null ? `<span class="ang" title="Fixed nesting angle">↻ ${p.angle}°</span>` : ''}</small></span>
         <span class="sz">${size}</span>
         <input class="qin" type="number" min="1" value="${p.perSet}" title="Quantity per set">
         <button class="lock ${p.lockRot ? 'on' : ''}" title="${p.lockRot ? 'Rotation locked (grain direction)' : 'Allow rotation'}">${p.lockRot ? LOCK : UNLOCK}</button>`;
@@ -132,7 +148,7 @@ export class NestUI {
       row.querySelector<HTMLInputElement>('.qin')!.oninput = (e) => { p.perSet = Math.max(1, Math.round(+(e.target as HTMLInputElement).value || 1)); this.schedule(); };
       row.querySelector<HTMLButtonElement>('.lock')!.onclick = (e) => { e.stopPropagation(); p.lockRot = !p.lockRot; this.renderTable(); this.schedule(); };
       row.querySelector<HTMLButtonElement>('.szb')!.onclick = (e) => { e.stopPropagation(); this.editSize(p, row); };
-      row.onclick = () => { this.previewId = p.id; this.renderPreview(); box.querySelectorAll('.nrow').forEach((r) => r.classList.toggle('pv', r === row)); };
+      row.onclick = () => { this.previewId = p.id; this.renderPreview(); box.querySelectorAll('.nrow').forEach((r) => r.classList.toggle('pv', r === row)); if (p.nest) this.selectPart(p.id); };
       box.appendChild(row);
     }
     this.updateCount();
@@ -167,6 +183,122 @@ export class NestUI {
     const k = this.kFactor();
     for (const p of this.parts) if (p.analysed && p.flatSource !== 'manual') analysePart(p, k);
     this.refresh();
+  }
+
+  /* ---------------- per-part rotation ---------------- */
+  private selPart() { return this.parts.find((x) => x.id === this.selId); }
+
+  selectPart(id: string | null) {
+    this.selId = id && this.parts.some((p) => p.id === id && p.nest && p.flat) ? id : null;
+    this.compare = null;
+    if (this.selId) this.previewId = this.selId;
+    this.renderRotBar();
+    this.paintSelection();
+    if (this.selId) this.renderPreview();
+  }
+
+  private setAngle(a: number | null) {
+    const p = this.selPart();
+    if (!p) return;
+    const label = ($('kpiMain').previousElementSibling as HTMLElement).textContent || '';
+    this.compare = { label, value: $('kpiMain').textContent || '', angle: p.angle === null ? 'Auto' : `${p.angle}°` };
+    p.angle = a;
+    this.renderRotBar();
+    this.renderTable();
+    this.schedule();
+  }
+
+  private renderRotBar() {
+    const p = this.selPart();
+    $('rotBar').hidden = !p;
+    if (!p) return;
+    ($('rotSw') as HTMLElement).style.background = p.color;
+    $('rotName').textContent = p.name;
+    const g = this.rotGeom(p);
+    $('rotSize').textContent = p.angle === null
+      ? `${r1(p.flat!.x)} × ${r1(p.flat!.y)} ${uLabel()} · nester picks 0° or 90°`
+      : `${p.angle}° → takes ${r1(g.w)} × ${r1(g.h)} ${uLabel()} on the sheet`;
+    $('rotAngles').querySelectorAll<HTMLButtonElement>('button').forEach((b) =>
+      b.classList.toggle('on', b.dataset.a === 'auto' ? p.angle === null : +b.dataset.a! === p.angle));
+    $<HTMLInputElement>('rotDeg').value = p.angle === null ? '' : String(p.angle);
+    $<HTMLInputElement>('rotDeg').placeholder = 'auto';
+  }
+
+  /**
+   * Try Auto plus every angle (5° steps, then refined to 1° around the winner) and keep the one that
+   * fits the most copies of this part on one sheet. Ties keep the simplest (Auto, then smaller angles).
+   */
+  private findBest() {
+    const p = this.selPart();
+    if (!p) return;
+    const s = this.settings();
+    const saved = p.angle;
+    const count = (a: number | null) => {
+      p.angle = a;
+      const g = a !== null ? this.rotGeom(p) : null;
+      const part: NestPart = { id: p.id, name: p.name, w: g ? g.w : p.flat!.x, h: g ? g.h : p.flat!.y, perSet: 1, color: p.color, lockRot: p.lockRot || a !== null };
+      return fillSheet([part], s).counts[p.id] ?? 0;
+    };
+    document.body.style.cursor = 'progress';
+    let best: { a: number | null; n: number } = { a: null, n: count(null) };
+    const tryA = (a: number) => { const n = count(a); if (n > best.n) best = { a, n }; };
+    for (let a = 0; a < 180; a += 5) tryA(a);
+    if (best.a !== null) { const c = best.a; for (let d = -4; d <= 4; d++) if (d) tryA(((c + d) % 180 + 180) % 180); }
+    document.body.style.cursor = '';
+    p.angle = saved;
+    this.setAngle(best.a);
+    $('rotResult').innerHTML = `<b>Best: ${best.a === null ? 'Auto (0°/90°)' : best.a + '°'} — ${best.n} per sheet</b> for this part on its own. Checked every angle.`;
+    this.compare = null;
+  }
+
+  /** After a nest, report how the angle change affected the count. */
+  private reportCompare() {
+    const p = this.selPart();
+    if (!p || !this.compare) return;
+    const now = $('kpiMain').textContent || '';
+    const lbl = (($('kpiMain').previousElementSibling as HTMLElement).textContent || '').toLowerCase();
+    const ang = p.angle === null ? 'Auto' : `${p.angle}°`;
+    const a = parseFloat(this.compare.value), b = parseFloat(now);
+    const verdict = Number.isFinite(a) && Number.isFinite(b) && a !== b
+      ? (lbl.includes('sheets needed') ? (b < a ? ' — better' : ' — worse') : (b > a ? ' — better' : ' — worse')) : '';
+    $('rotResult').innerHTML = `<b>${ang}: ${esc(now)} ${esc(lbl)}</b> (was ${esc(this.compare.value)} at ${esc(this.compare.angle)})${verdict}`;
+  }
+
+  private paintSelection() {
+    document.querySelectorAll<SVGSVGElement>('#sheets .sheet svg').forEach((svg) => {
+      svg.classList.toggle('has-sel', !!this.selId);
+      svg.querySelectorAll<SVGGElement>('g.np').forEach((g) => g.classList.toggle('sel', g.dataset.id === this.selId));
+    });
+  }
+
+  /** Flat outline points (blank coordinates), or the blank rectangle when there's no unfolded shape. */
+  private shapePts(p: PartType): [number, number][] {
+    const W = p.flat!.x, H = p.flat!.y;
+    if (p.flatInfo && p.flatSource !== 'manual' && p.flatInfo.outline.length) {
+      const sx = p.flatInfo.x ? W / p.flatInfo.x : 1, sy = p.flatInfo.y ? H / p.flatInfo.y : 1;
+      const pts: [number, number][] = [];
+      for (const t of p.flatInfo.outline) for (const v of t) pts.push([v[0] * sx, v[1] * sy]);
+      return pts;
+    }
+    return [[0, 0], [W, 0], [W, H], [0, H]];
+  }
+
+  /** Bounding box of the blank rotated by its fixed angle (SVG rotation: clockwise on screen). */
+  private rotGeom(p: PartType) {
+    const a = p.angle ?? 0;
+    const key = `${p.id}|${a}|${p.flat!.x}|${p.flat!.y}|${p.flatSource}`;
+    let g = this.geomCache.get(key);
+    if (!g) {
+      const c = Math.cos(a * Math.PI / 180), s = Math.sin(a * Math.PI / 180);
+      let mx = Infinity, my = Infinity, Mx = -Infinity, My = -Infinity;
+      for (const [x, y] of this.shapePts(p)) {
+        const rx = x * c - y * s, ry = x * s + y * c;
+        if (rx < mx) mx = rx; if (rx > Mx) Mx = rx; if (ry < my) my = ry; if (ry > My) My = ry;
+      }
+      g = { w: Mx - mx, h: My - my, mx, my };
+      this.geomCache.set(key, g);
+    }
+    return g;
   }
 
   /* ---------------- flat preview ---------------- */
@@ -220,7 +352,12 @@ export class NestUI {
   private run() {
     const sel = this.parts.filter((p) => p.nest && p.flat);
     const s = this.settings();
-    const np: NestPart[] = sel.map((p) => ({ id: p.id, name: p.name, w: p.flat!.x, h: p.flat!.y, perSet: Math.max(1, p.perSet), color: p.color, lockRot: p.lockRot }));
+    const np: NestPart[] = sel.map((p) => {
+      // fixed angle: nest the rotated shape's bounding box, and don't let the nester turn it further
+      const g = p.angle !== null ? this.rotGeom(p) : null;
+      return { id: p.id, name: p.name, w: g ? g.w : p.flat!.x, h: g ? g.h : p.flat!.y, perSet: Math.max(1, p.perSet), color: p.color, lockRot: p.lockRot || p.angle !== null };
+    });
+    if (this.selId && !sel.some((p) => p.id === this.selId)) { this.selId = null; this.renderRotBar(); }
     if (!np.length) { this.last = null; this.renderResults(null, s, []); return; }
     // single part in fill mode: maximise count, ignore the per-set quantity
     const res = this.mode === 'fill'
@@ -266,7 +403,7 @@ export class NestUI {
       sh.placed.forEach((p) => (cnt[p.id] = (cnt[p.id] ?? 0) + 1));
       div.innerHTML = `<div class="sheet-h"><span><b>Sheet ${i + 1}</b>${res.sheets.length > 1 ? ` of ${res.sheets.length}` : ''} · ${r1(s.sheetW)} × ${r1(s.sheetH)} ${uLabel()}</span><span>${sh.placed.length} blanks · ${(sh.used / (s.sheetW * s.sheetH) * 100).toFixed(1)}% used</span></div>
         ${this.sheetSvg(sh.placed, s)}
-        <div class="legend">${np.filter((p) => cnt[p.id]).map((p) => `<span><i style="background:${p.color}"></i><b>${cnt[p.id]}×</b> ${esc(p.name)} <span class="muted">(${r1(p.w)}×${r1(p.h)})</span></span>`).join('')}</div>`;
+        <div class="legend">${np.filter((p) => cnt[p.id]).map((p) => `<span><i style="background:${p.color}"></i><b>${cnt[p.id]}×</b> ${esc(p.name)} <span class="muted">(${r1(p.w)}×${r1(p.h)}${this.parts.find((x) => x.id === p.id)?.angle != null ? ` @ ${this.parts.find((x) => x.id === p.id)!.angle}°` : ''})</span></span>`).join('')}</div>`;
       sheetsBox.appendChild(div);
     });
     if (res.sheets.length > max) {
@@ -275,6 +412,9 @@ export class NestUI {
       more.textContent = `+ ${res.sheets.length - max} more sheet(s) not drawn.`;
       sheetsBox.appendChild(more);
     }
+    this.paintSelection();
+    this.renderRotBar();
+    this.reportCompare();
   }
 
   private sheetSvg(placed: { id: string; x: number; y: number; w: number; h: number; rot: boolean }[], s: NestSettings) {
@@ -287,8 +427,10 @@ export class NestUI {
     }).join('');
     const items = placed.map((p) => {
       const part = this.parts.find((x) => x.id === p.id)!;
-      const t = p.rot ? `translate(${p.x + p.w} ${p.y}) rotate(90)` : `translate(${p.x} ${p.y})`;
-      return `<g><use href="#sym-${p.id}" transform="${t}"/><rect x="${p.x}" y="${p.y}" width="${p.w}" height="${p.h}" fill="none" stroke="${part.color}" stroke-width="${stroke}"/></g>`;
+      let t: string;
+      if (part.angle !== null) { const g = this.rotGeom(part); t = `translate(${p.x - g.mx} ${p.y - g.my}) rotate(${part.angle})`; }
+      else t = p.rot ? `translate(${p.x + p.w} ${p.y}) rotate(90)` : `translate(${p.x} ${p.y})`;
+      return `<g class="np" data-id="${p.id}"><use href="#sym-${p.id}" transform="${t}"/><rect x="${p.x}" y="${p.y}" width="${p.w}" height="${p.h}" fill="none" stroke="${part.color}" stroke-width="${stroke}"/></g>`;
     }).join('');
     const grid = Math.max(100, Math.round(W / 15 / 100) * 100);
     return `<svg viewBox="${-W * 0.01} ${-W * 0.01} ${W * 1.02} ${H + W * 0.02}" xmlns="http://www.w3.org/2000/svg">

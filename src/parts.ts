@@ -29,6 +29,7 @@ export interface PartType {
   nest: boolean;
   perSet: number;
   lockRot: boolean;
+  angle: number | null; // fixed nesting angle in degrees; null = auto (0° or 90°)
 }
 
 const NEST_COLORS = ['#22d3ee', '#f59e0b', '#a78bfa', '#4ade80', '#f87171', '#38bdf8', '#fb923c', '#e879f9', '#facc15', '#2dd4bf', '#d9c7a5', '#818cf8'];
@@ -52,7 +53,7 @@ export function buildCatalog(meshes: readonly THREE.Mesh[]): PartType[] {
         color: NEST_COLORS[map.size % NEST_COLORS.length],
         meta, material: metaSummary(meta).material,
         thickness: null, tSource: null, flat: null, flatSource: null, analysed: false,
-        nest: false, perSet: 1, lockRot: false,
+        nest: false, perSet: 1, lockRot: false, angle: null,
       };
       map.set(key, p);
     }

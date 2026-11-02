@@ -208,6 +208,23 @@
       <button class="cta ghost" id="nestPng" disabled><svg viewBox="0 0 24 24"><path d="M12 4v12m0 0-5-5m5 5 5-5M4 20h16"/></svg>Save layout PNG</button>
     </section>
 
+    <section class="rotbar" id="rotBar" hidden>
+      <div class="rot-part"><span class="sw" id="rotSw"></span><b id="rotName">Part</b><small id="rotSize"></small></div>
+      <div class="rot-ctl">
+        <span class="lbl">Rotation</span>
+        <div class="seg" id="rotAngles">
+          <button data-a="auto" title="Let the nester choose 0° or 90°">Auto</button>
+          <button data-a="0">0°</button><button data-a="15">15°</button><button data-a="30">30°</button><button data-a="45">45°</button><button data-a="60">60°</button><button data-a="75">75°</button><button data-a="90">90°</button>
+        </div>
+        <button class="ibtn" id="rotCcw" title="Rotate 15° anticlockwise"><svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 2.6-5.9L4 8.5"/><path d="M4 3.5v5h5"/></svg></button>
+        <button class="ibtn" id="rotCw" title="Rotate 15° clockwise"><svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.6-5.9L20 8.5"/><path d="M20 3.5v5h-5"/></svg></button>
+        <button class="sbtn acc" id="rotBest" title="Try every angle and keep the one that fits the most on a sheet">★ Best</button>
+        <label class="rot-custom"><input id="rotDeg" type="number" min="0" max="359" step="1" title="Any angle"><span>°</span></label>
+        <button class="ibtn" id="rotClose" title="Close"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+      </div>
+      <p class="rot-result" id="rotResult">All copies of this part are nested at the chosen angle. Click another blank on the sheet to change it.</p>
+    </section>
+
     <section class="sheets" id="sheets">
       <div class="sheets-empty"><div class="drop-ico small"><img src="logo-cad.svg" width="56" height="56" alt=""></div><p>Select one or more flat blanks on the left to see how they nest.</p></div>
     </section>
