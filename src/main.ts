@@ -45,15 +45,77 @@ addEventListener('drop', (e) => {
   if (f) openFile(f); else if (viewer.model) $('drop').classList.add('hidden');
 });
 
+/* ---------------- loading dialog ---------------- */
+const STEPS = ['read', 'engine', 'parse', 'build', 'analyse'] as const;
+type Step = typeof STEPS[number];
+const STEP_WEIGHT: Record<Step, number> = { read: 5, engine: 10, parse: 45, build: 15, analyse: 25 };
+const busy = {
+  t0: 0, timer: 0, step: 'read' as Step, frac: 0, stepT0: 0, sizeMB: 0,
+  open(file: File, isBrep: boolean) {
+    this.t0 = performance.now();
+    this.sizeMB = file.size / 1048576;
+    $('loadTitle').textContent = file.name;
+    $('loadSize').textContent = `· ${fmtSize(file.size)}`;
+    $('loadMsg').textContent = 'Please wait — the model will be ready to use in a moment.';
+    $('loadSkip').hidden = true;
+    $('anaCount').textContent = '';
+    document.querySelectorAll<HTMLElement>('#loadSteps li').forEach((li) => {
+      li.className = '';
+      if (li.dataset.step === 'engine' && !isBrep) li.classList.add('skip'); // mesh files don't need the CAD engine
+    });
+    $('loading').hidden = false;
+    (document.activeElement as HTMLElement | null)?.blur();
+    clearInterval(this.timer);
+    this.timer = window.setInterval(() => {
+      const s = (performance.now() - this.t0) / 1000;
+      $('loadTime').textContent = `${s.toFixed(1)} s`;
+      // big assemblies: after a few seconds of sheet metal checking, offer to carry on in the background
+      if (this.step === 'analyse' && s > 4) $('loadSkip').hidden = false;
+      // the CAD engine gives no progress while reading geometry: ease the bar forward
+      // using a rough time estimate from the file size, so it never looks frozen
+      if (this.step === 'parse') {
+        const est = Math.max(2, this.sizeMB * 1.5);
+        const t = (performance.now() - this.stepT0) / 1000;
+        this.set('parse', Math.min(0.95, 1 - Math.exp(-t / est)));
+        if (t > 6) $('loadMsg').textContent = 'Large or detailed model — reading the geometry can take a little while. Please wait.';
+      }
+    }, 100);
+    this.set('read');
+  },
+  set(step: Step, frac = 0) {
+    if (step !== this.step) this.stepT0 = performance.now();
+    this.step = step; this.frac = frac;
+    const idx = STEPS.indexOf(step);
+    document.querySelectorAll<HTMLElement>('#loadSteps li').forEach((li) => {
+      const i = STEPS.indexOf(li.dataset.step as Step);
+      li.classList.toggle('done', i < idx);
+      li.classList.toggle('active', i === idx);
+    });
+    if (step !== 'parse') $('loadMsg').textContent = step === 'analyse'
+      ? 'Almost there — measuring thickness and flat blanks for each part.'
+      : 'Please wait — the model will be ready to use in a moment.';
+    let pct = 0;
+    STEPS.forEach((s, i) => { if (i < idx) pct += STEP_WEIGHT[s]; });
+    pct += STEP_WEIGHT[step] * frac;
+    ($('loadBar') as HTMLElement).style.width = `${Math.min(100, pct)}%`;
+  },
+  close() { clearInterval(this.timer); $('loading').hidden = true; },
+  isOpen() { return !$('loading').hidden; },
+};
+/** Let the browser paint the dialog before a heavy main-thread step. */
+const nextFrame = () => new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())));
+
 async function openFile(file: File) {
+  if (busy.isOpen()) return;
   currentFile = file;
-  $('loadTitle').textContent = file.name;
-  $('loadMsg').textContent = 'Reading file…';
-  $('loading').hidden = false;
   $('toast').hidden = true;
+  busy.open(file, /\.(stp|step|igs|iges|brep|brp)$/i.test(file.name));
   const t0 = performance.now();
   try {
-    const res = await importFile(file, quality, (m) => { $('loadMsg').textContent = m; });
+    await nextFrame();
+    const res = await importFile(file, quality, (_m, stage) => { if (stage) busy.set(stage); });
+    busy.set('build');
+    await nextFrame();
     setTool(null);
     // show the model in the units it was drawn in (STEP files declare it)
     const fu = res.header?.lengthUnit;
@@ -67,14 +129,29 @@ async function openFile(file: File) {
     $('drop').classList.add('hidden');
     buildTree(res.root);
     showFileInfo(file, res.format, res.engine, performance.now() - t0, res.header);
-    startCatalog();
     showSelection(null);
     document.title = `${file.name} · PC CAD View`;
+    // compile shaders and draw a frame so the model is on screen when the dialog closes
+    try {
+      const r = viewer.renderer;
+      if (r.extensions.has('KHR_parallel_shader_compile')) await r.compileAsync(viewer.scene, viewer.camera);
+      else r.compile(viewer.scene, viewer.camera);
+    } catch { /* compile on first draw instead */ }
+    await nextFrame();
+    busy.set('analyse');
+    const analysed = startCatalog((done, total) => {
+      busy.set('analyse', total ? done / total : 1);
+      $('anaCount').textContent = total > 1 ? `${done} / ${total}` : '';
+    });
+    // wait for the check, unless the user chooses to carry on
+    await Promise.race([analysed, new Promise<void>((r) => ($('loadSkip').onclick = () => r()))]);
+    busy.set('analyse', 1);
+    await nextFrame();
   } catch (err) {
     toast((err as Error).message || String(err));
     if (!viewer.model) $('drop').classList.remove('hidden');
   } finally {
-    $('loading').hidden = true;
+    busy.close();
   }
 }
 
@@ -206,13 +283,18 @@ function propsBox(meta?: MetaProp[]): string {
 }
 
 /* ---------------- part catalogue (parts list tab + nesting) ---------------- */
-function startCatalog() {
+function startCatalog(onProgress?: (done: number, total: number) => void): Promise<void> {
   cancelAnalysis?.();
   catalog = buildCatalog(viewer.allMeshes());
   nest.setParts(catalog);
   renderPartsList();
   let lastPaint = 0;
+  let finish!: () => void;
+  const finished = new Promise<void>((r) => (finish = r));
+  if (!catalog.length) finish();
   cancelAnalysis = analyseAll(catalog, nest.kFactor(), (done) => {
+    onProgress?.(done, catalog.length);
+    if (done === catalog.length) finish();
     const now = performance.now();
     if (done < catalog.length && now - lastPaint < 400) return;
     lastPaint = now;
@@ -225,6 +307,7 @@ function startCatalog() {
       if (n && $('toast').hidden) toast(`${n} sheet metal part${n > 1 ? 's' : ''} found — flat blanks ready in Nesting`, true);
     }
   });
+  return finished;
 }
 
 function renderPartsList() {
@@ -480,6 +563,7 @@ addEventListener('keydown', (e) => {
   const tgt = e.target as HTMLInputElement;
   if ((tgt.tagName === 'INPUT' && tgt.type !== 'range') || e.ctrlKey || e.metaKey || e.altKey) return;
   const k = e.key.toLowerCase();
+  if (busy.isOpen()) { e.preventDefault(); return; } // nothing until the model is ready
   // help overlay: ? opens/closes, Esc closes; nothing else fires while it's open
   if (k === '?') { setHelp($('help').hidden !== false); return; }
   if (!$('help').hidden) { if (k === 'escape') setHelp(false); return; }

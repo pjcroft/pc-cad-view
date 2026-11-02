@@ -155,10 +155,6 @@ body.dragging .drop-card{transform:scale(1.03);box-shadow:0 0 0 2px var(--accent
 .chip.b{color:#a5f3fc;border-color:rgba(34,211,238,.4);background:rgba(34,211,238,.1)}
 .soon{font-size:.78rem}
 
-/* loading */
-.loading{position:absolute;inset:0;z-index:4;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.5rem;background:rgba(11,18,32,.6);backdrop-filter:blur(4px)}
-.loading[hidden]{display:none}
-.loading span{color:var(--muted);font-size:.88rem}
 .spinner{width:54px;height:54px;border-radius:50%;margin-bottom:.4rem;border:3px solid rgba(34,211,238,.15);border-top-color:var(--accent);border-right-color:var(--tool);animation:spin .9s linear infinite}
 
 .toast{position:absolute;left:50%;bottom:22px;transform:translateX(-50%);z-index:5;max-width:min(560px,90%);padding:.7rem 1rem;border-radius:12px;font-size:.88rem;
@@ -328,3 +324,35 @@ kbd{display:inline-block;min-width:1.7em;text-align:center;font:700 .76rem/1 ui-
   padding:.28rem .45rem;border-radius:6px;background:linear-gradient(180deg,#1d2c4d,#14213a);border:1px solid #33476f;border-bottom-width:2px;box-shadow:0 2px 0 rgba(0,0,0,.35)}
 .help-foot{margin:.9rem 0 0;font-size:.78rem;color:var(--muted)}
 @media (max-width:700px){.help-grid{grid-template-columns:1fr}.helpbtn svg{display:none}}
+
+/* ---------- loading dialog ---------- */
+.busy{position:fixed;inset:0;z-index:45;display:grid;place-items:center;padding:1rem;background:rgba(5,10,20,.62);backdrop-filter:blur(5px);cursor:progress;animation:fade .15s ease-out}
+.busy[hidden]{display:none}
+.busy-card{position:relative;isolation:isolate;width:min(460px,100%);padding:1.3rem 1.4rem 1.1rem;border-radius:20px;cursor:default;
+  background:linear-gradient(180deg,rgba(22,35,63,.97),rgba(17,28,48,.97));box-shadow:0 40px 90px -30px #000}
+.busy-card::before{content:"";position:absolute;inset:0;border-radius:inherit;padding:1.5px;z-index:-1;background:linear-gradient(140deg,var(--accent),transparent 40%,transparent 60%,var(--tool));opacity:.75;
+  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude}
+.busy-top{display:flex;align-items:center;gap:.9rem;margin-bottom:1rem}
+.busy-top .spinner{width:44px;height:44px;margin:0;flex:none}
+.busy-head{flex:1;min-width:0}
+.busy-head h2{margin:0;font-size:1.15rem}
+.busy-file{margin:.15rem 0 0;font-size:.82rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.busy-file b{color:var(--text);font-weight:700}
+.busy-time{font-variant-numeric:tabular-nums;font-size:.8rem;color:var(--muted);align-self:flex-start}
+.steps{list-style:none;margin:0 0 1rem;padding:0;display:flex;flex-direction:column;gap:.5rem;font-size:.9rem}
+.steps li{display:flex;align-items:center;gap:.6rem;color:var(--muted);transition:color .2s}
+.steps li small{color:var(--muted);font-size:.74rem}
+.steps li i{flex:none;width:18px;height:18px;border-radius:50%;border:2px solid var(--line);display:grid;place-items:center;transition:all .2s}
+.steps li.active{color:var(--text);font-weight:600}
+.steps li.active i{border-color:var(--accent);border-top-color:transparent;animation:spin .8s linear infinite}
+.steps li.done{color:var(--text)}
+.steps li.done i{border-color:#34d399;background:#34d399}
+.steps li.done i::after{content:"";width:5px;height:9px;border:solid #04121a;border-width:0 2px 2px 0;transform:translate(0,-1px) rotate(45deg)}
+.steps li.skip{display:none}
+.busy-bar{height:6px;border-radius:999px;background:var(--bg);overflow:hidden;position:relative}
+.busy-bar i{position:absolute;left:0;top:0;bottom:0;width:0;border-radius:inherit;background:linear-gradient(90deg,var(--accent),var(--accent2));transition:width .35s ease}
+.busy-bar i::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(255,255,255,.45),transparent);background-size:60% 100%;background-repeat:no-repeat;animation:shimmer 1.3s linear infinite}
+@keyframes shimmer{from{background-position:-60% 0}to{background-position:160% 0}}
+.busy-note{margin:.8rem 0 0;font-size:.82rem;color:var(--muted)}
+.busy-skip{display:block;margin-top:.6rem;font-size:.8rem}
+.busy-skip[hidden]{display:none}

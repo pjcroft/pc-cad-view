@@ -11,7 +11,8 @@ import { ThreeMFLoader } from 'three/examples/jsm/loaders/3MFLoader.js';
 import { getUnit } from './units';
 
 export type Quality = 'draft' | 'normal' | 'fine';
-export type Progress = (msg: string) => void;
+export type Stage = 'read' | 'engine' | 'parse' | 'build';
+export type Progress = (msg: string, stage?: Stage) => void;
 
 export interface MetaProp { key: string; value: string; num?: number; unit?: string }
 export interface FileHeader { name?: string; date?: string; author?: string; organization?: string; preprocessor?: string; system?: string; schema?: string; lengthUnit?: string; assumedUnit?: boolean }
@@ -107,12 +108,12 @@ function importBrep(file: File, occtFormat: string, quality: Quality, progress: 
       const d = ev.data;
       if (d.id !== id) return;
       if (d.type === 'progress') {
-        progress(d.stage === 'engine' ? 'Starting CAD engine…' : 'Reading B-rep geometry and tessellating…');
+        progress(d.stage === 'engine' ? 'Starting CAD engine…' : 'Reading B-rep geometry and tessellating…', d.stage === 'engine' ? 'engine' : 'parse');
         return;
       }
       w.removeEventListener('message', onMsg);
       if (d.type === 'error') return reject(new Error(d.message));
-      progress('Building scene…');
+      progress('Building scene…', 'build');
       const root = buildFromOcct(d.root, d.meshes, file.name);
       if (d.meta) attachMeta(root, d.meta.parts || {});
       resolve({ root, format: FORMATS[extOf(file.name)].label, engine: 'OpenCascade (WASM)', parseMs: d.ms, header: d.meta?.header });
@@ -207,7 +208,7 @@ export function metaSummary(meta: MetaProp[] | undefined) {
 
 /* ---------------- mesh formats via three.js loaders ---------------- */
 async function importMesh(file: File, ext: string, progress: Progress): Promise<ImportResult> {
-  progress('Reading mesh…');
+  progress('Reading mesh…', 'parse');
   const t0 = performance.now();
   const buf = await file.arrayBuffer();
   const root = new THREE.Group();

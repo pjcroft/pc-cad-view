@@ -108,13 +108,6 @@
         <p class="soon">SolidWorks, NX, Creo &amp; CATIA files: coming with the converter. For now, save as STEP.</p>
       </div>
     </div>
-
-    <div class="loading" id="loading" hidden>
-      <div class="spinner"></div>
-      <b id="loadTitle">Opening…</b>
-      <span id="loadMsg">Starting CAD engine…</span>
-    </div>
-
     <div class="toast" id="toast" hidden></div>
     <div class="hint" id="hint">Left-drag rotate · Right-drag pan · Scroll zoom · Double-click to centre</div>
   </main>
@@ -220,6 +213,30 @@
     </section>
     <p class="nest-foot">Rectangular blank nesting — a quick planning and benchmark estimate. True-shape nesting in your laser CAM software can usually fit a few more irregular parts.</p>
   </main>
+</div>
+
+<!-- ============ loading dialog (blocks the app until the model is ready) ============ -->
+<div class="busy" id="loading" hidden>
+  <div class="busy-card" role="alertdialog" aria-modal="true" aria-busy="true" aria-labelledby="busyTitle" aria-describedby="loadMsg">
+    <div class="busy-top">
+      <div class="spinner"></div>
+      <div class="busy-head">
+        <h2 id="busyTitle">Loading model…</h2>
+        <p class="busy-file"><b id="loadTitle">file</b> <span id="loadSize"></span></p>
+      </div>
+      <span class="busy-time" id="loadTime">0.0 s</span>
+    </div>
+    <ol class="steps" id="loadSteps">
+      <li data-step="read"><i></i>Reading file</li>
+      <li data-step="engine"><i></i>Starting CAD engine <small>(first time only, ~7 MB)</small></li>
+      <li data-step="parse"><i></i>Reading geometry</li>
+      <li data-step="build"><i></i>Building 3D view</li>
+      <li data-step="analyse"><i></i>Checking sheet metal parts <small id="anaCount"></small></li>
+    </ol>
+    <div class="busy-bar"><i id="loadBar"></i></div>
+    <p class="busy-note" id="loadMsg">Please wait — the model will be ready to use in a moment.</p>
+    <button class="link busy-skip" id="loadSkip" hidden>Use the model now — finish the sheet metal check in the background</button>
+  </div>
 </div>
 
 <!-- ============ keyboard / mouse help ============ -->

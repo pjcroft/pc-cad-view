@@ -30,6 +30,10 @@ Files are processed in the visitor's browser; nothing is uploaded.
 <td><b>Start screen</b><br><img src="mockup/1-start.png" alt="Start screen"></td>
 <td><b>Shortcuts &amp; controls (? button or ? key)</b><br><img src="mockup/10-shortcuts-help.png" alt="Shortcuts help"></td>
 </tr>
+<tr>
+<td><b>Loading dialog (240-part assembly)</b><br><img src="mockup/11-loading-dialog.png" alt="Loading dialog"></td>
+<td></td>
+</tr>
 </table>
 
 ## Features (v0.1)
@@ -37,6 +41,8 @@ Files are processed in the visitor's browser; nothing is uploaded.
 - Assembly tree + parts list with quantities; filter, show/hide, isolate
 - **Normal To** (look straight at a clicked face), **Face down / Face up** (re-orient the model so a face sits
   on the floor — fixes sheet metal drawn upside down), flip 180°, reset orientation
+- **Loading dialog** that blocks the app until the model is fully ready: step checklist, progress bar,
+  elapsed time, parts counter (big assemblies can finish the sheet metal check in the background)
 - **Shortcuts & controls** cheat sheet: keyboard button in the header or press **?**
 - Section plane, explode, point-to-point measure, edges / wireframe / X-ray, PNG screenshot
 - **STEP metadata**: material, density, thickness, part number, SolidWorks/Inventor custom properties, source CAD system
