@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PC CAD View</title>
+<link rel="icon" type="image/svg+xml" href="logo-cad.svg">
+<link rel="stylesheet" href="/src/style.css">
+</head>
+<body>
+<div class="bg" aria-hidden="true"><div class="orb o1"></div><div class="orb o2"></div></div>
+
+<header>
+  <a class="back" href="../" title="All pjcroft tools">&larr; Tools</a>
+  <img class="hlogo" src="logo-cad.svg" width="30" height="30" alt="">
+  <h1>PC <span>CAD View</span> <small>v0.1</small></h1>
+  <nav class="modes" id="modes">
+    <button data-mode="view" class="on"><svg viewBox="0 0 24 24"><path d="M12 3 20 7.5v9L12 21l-8-4.5v-9z"/><path d="M12 12l8-4.5M12 12 4 7.5M12 12v9"/></svg>3D view</button>
+    <button data-mode="nest"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="1.5"/><rect x="6" y="7" width="5" height="4"/><rect x="13" y="7" width="5" height="6"/><rect x="6" y="13" width="5" height="4"/></svg>Nesting <b id="nestBadge" hidden>0</b></button>
+  </nav>
+  <div class="sp"></div>
+  <div class="seg units" id="units" title="Display units (U)"><button data-u="mm">mm</button><button data-u="in">inch</button></div>
+  <span class="priv"><i></i>Files stay in your browser</span>
+  <button class="cta" id="openBtn"><svg viewBox="0 0 24 24"><path d="M4 20h16M12 4v12m0-12-5 5m5-5 5 5"/></svg>Open model</button>
+  <input type="file" id="fileIn" hidden>
+</header>
+
+<div class="work">
+  <!-- ============ left: model tree ============ -->
+  <aside class="left panel">
+    <div class="ph">
+      <div class="tabs" id="leftTabs"><button data-tab="tree" class="on">Tree</button><button data-tab="parts">Parts</button></div>
+      <span class="count" id="treeCount">—</span>
+    </div>
+    <div class="tree-tools">
+      <input id="treeSearch" type="search" placeholder="Filter parts…" disabled>
+      <button class="ibtn" id="showAll" title="Show all parts" disabled><svg viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></button>
+    </div>
+    <div class="tree" id="tree"><p class="empty-note">Open a model to see its assemblies and parts.</p></div>
+    <div class="tree parts" id="parts" hidden></div>
+  </aside>
+
+  <!-- ============ centre: viewport ============ -->
+  <main class="stage" id="stage">
+    <div class="vp" id="vp"></div>
+
+    <nav class="toolbar" id="toolbar" aria-label="View tools">
+      <div class="grp">
+        <button data-act="fit" title="Fit all (F)"><svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
+        <button data-view="iso" title="Isometric (0)"><svg viewBox="0 0 24 24"><path d="M12 3 20 7.5v9L12 21l-8-4.5v-9z"/><path d="M12 12l8-4.5M12 12 4 7.5M12 12v9"/></svg></button>
+        <button data-view="front" title="Front (1)" class="txt">F</button>
+        <button data-view="top" title="Top (7)" class="txt">T</button>
+        <button data-view="right" title="Right (3)" class="txt">R</button>
+      </div>
+      <div class="grp">
+        <button data-toggle="edges" class="on" title="Edges (E)"><svg viewBox="0 0 24 24"><path d="M4 7l8-4 8 4v10l-8 4-8-4z"/></svg></button>
+        <button data-toggle="wire" title="Wireframe (W)"><svg viewBox="0 0 24 24"><path d="M4 7l8-4 8 4v10l-8 4-8-4zM4 7l16 10M20 7 4 17M12 3v18"/></svg></button>
+        <button data-toggle="xray" title="X-ray (X)"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8" stroke-dasharray="3 3"/><circle cx="12" cy="12" r="3"/></svg></button>
+      </div>
+      <div class="grp">
+        <button data-tool="section" title="Section plane (S)"><svg viewBox="0 0 24 24"><path d="M4 7l8-4 8 4v10l-8 4-8-4z" opacity=".45"/><path d="M2 13l10-4 10 4-10 4z"/></svg></button>
+        <button data-tool="explode" title="Explode (V)"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="6" height="6" rx="1"/><path d="M5 5l2.5 2.5M19 5l-2.5 2.5M5 19l2.5-2.5M19 19l-2.5-2.5"/></svg></button>
+        <button data-tool="measure" title="Measure distance (M)"><svg viewBox="0 0 24 24"><path d="M3 17 17 3l4 4L7 21z"/><path d="M7 13l2 2M10 10l2 2M13 7l2 2"/></svg></button>
+      </div>
+      <div class="grp">
+        <button data-act="shot" title="Save screenshot (PNG)"><svg viewBox="0 0 24 24"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg></button>
+      </div>
+    </nav>
+
+    <!-- tool option panels -->
+    <div class="pop" id="pop-section" hidden>
+      <div class="pop-row">
+        <span class="lbl">Section</span>
+        <div class="seg" id="secAxis"><button data-axis="x">X</button><button data-axis="y">Y</button><button data-axis="z" class="on">Z</button></div>
+        <button class="ibtn" id="secFlip" title="Flip side"><svg viewBox="0 0 24 24"><path d="M7 4v16m0 0-3-3m3 3 3-3M17 20V4m0 0-3 3m3-3 3 3"/></svg></button>
+      </div>
+      <input type="range" id="secPos" min="0" max="1000" value="500">
+      <div class="pop-foot"><span id="secVal">—</span></div>
+    </div>
+    <div class="pop" id="pop-explode" hidden>
+      <div class="pop-row"><span class="lbl">Explode</span><span class="val" id="expVal">0%</span></div>
+      <input type="range" id="expPos" min="0" max="100" value="0">
+    </div>
+    <div class="pop" id="pop-measure" hidden>
+      <div class="pop-row"><span class="lbl">Measure</span><span class="val" id="measHint">Click the first point</span></div>
+    </div>
+
+    <!-- empty / drop state -->
+    <div class="drop" id="drop">
+      <div class="drop-card">
+        <div class="drop-ico"><img src="logo-cad.svg" width="72" height="72" alt=""></div>
+        <h2>Drop a 3D model here</h2>
+        <p>or <button class="link" id="openBtn2">browse your files</button></p>
+        <div class="chips">
+          <span class="chip b">STEP</span><span class="chip b">IGES</span><span class="chip b">BREP</span>
+          <span class="chip">STL</span><span class="chip">OBJ</span><span class="chip">glTF</span><span class="chip">3MF</span>
+        </div>
+        <p class="soon">SolidWorks, NX, Creo &amp; CATIA files: coming with the converter. For now, save as STEP.</p>
+      </div>
+    </div>
+
+    <div class="loading" id="loading" hidden>
+      <div class="spinner"></div>
+      <b id="loadTitle">Opening…</b>
+      <span id="loadMsg">Starting CAD engine…</span>
+    </div>
+
+    <div class="toast" id="toast" hidden></div>
+    <div class="hint" id="hint">Left-drag rotate · Right-drag pan · Scroll zoom · Double-click to centre</div>
+  </main>
+
+  <!-- ============ right: properties ============ -->
+  <aside class="right panel">
+    <section class="card" id="fileCard">
+      <h3>File</h3>
+      <dl id="fileInfo"><dt>Name</dt><dd class="muted">No model open</dd></dl>
+    </section>
+
+    <section class="card">
+      <h3>Overall size</h3>
+      <div class="dims" id="dims">
+        <div class="dim x"><span>X</span><b>—</b></div>
+        <div class="dim y"><span>Y</span><b>—</b></div>
+        <div class="dim z"><span>Z</span><b>—</b></div>
+      </div>
+      <div class="mini" id="miniStats"></div>
+    </section>
+
+    <section class="card" id="selCard">
+      <h3>Selection</h3>
+      <div id="selInfo"><p class="muted small">Click a part in the 3D view or the tree.</p></div>
+    </section>
+
+    <section class="card" id="measCard" hidden>
+      <h3>Measurement</h3>
+      <div id="measInfo"></div>
+    </section>
+
+    <section class="card">
+      <h3>Tessellation quality</h3>
+      <div class="seg wide" id="quality"><button data-q="draft">Draft</button><button data-q="normal" class="on">Normal</button><button data-q="fine">Fine</button></div>
+      <p class="muted small">Finer = smoother curves, slower to open. Applies to STEP / IGES / BREP.</p>
+    </section>
+  </aside>
+</div>
+
+<!-- ============ nesting screen ============ -->
+<div class="nest" id="nestScreen" hidden>
+  <aside class="nest-parts panel">
+    <div class="ph">
+      <h2>Flat blanks</h2>
+      <span class="count" id="nestCount">0 selected</span>
+    </div>
+    <p class="nest-help">Tick the parts to nest. Sizes come from the file's flat-pattern properties when present, otherwise from an automatic unfold. Click a size to edit it.</p>
+    <div class="nest-tools">
+      <button class="sbtn" id="nestSheetOnly">Select all sheet metal</button>
+      <button class="sbtn" id="nestNone">Clear</button>
+    </div>
+    <div class="ntable" id="nestTable"><p class="empty-note">Open a model in 3D view first.</p></div>
+    <section class="card flat-card" id="flatCard" hidden>
+      <h3>Flat preview</h3>
+      <div id="flatPrev"></div>
+    </section>
+  </aside>
+
+  <main class="nest-main">
+    <section class="nest-settings">
+      <div class="fld">
+        <label>Sheet</label>
+        <select id="sheetPreset">
+          <optgroup label="Metric">
+            <option value="3000x1500">3000 × 1500 mm</option>
+            <option value="2500x1250">2500 × 1250 mm</option>
+            <option value="2000x1000">2000 × 1000 mm</option>
+            <option value="4000x2000">4000 × 2000 mm</option>
+          </optgroup>
+          <optgroup label="Imperial">
+            <option value="2438.4x1219.2">96 × 48 in (4 × 8 ft)</option>
+            <option value="3048x1524">120 × 60 in (5 × 10 ft)</option>
+            <option value="3657.6x1524">144 × 60 in (5 × 12 ft)</option>
+            <option value="3048x1219.2">120 × 48 in (4 × 10 ft)</option>
+          </optgroup>
+          <option value="custom">Custom…</option>
+        </select>
+      </div>
+      <div class="fld sm"><label>Length</label><input id="sheetW" type="number" value="3000" min="10"><i class="u">mm</i></div>
+      <div class="fld sm"><label>Width</label><input id="sheetH" type="number" value="1500" min="10"><i class="u">mm</i></div>
+      <div class="fld sm"><label>Edge margin</label><input id="margin" type="number" value="10" min="0"><i class="u">mm</i></div>
+      <div class="fld sm"><label>Part gap</label><input id="gap" type="number" value="5" min="0"><i class="u">mm</i></div>
+      <div class="fld sm"><label>K-factor</label><input id="kfac" type="number" value="0.44" min="0" max="1" step="0.01"></div>
+      <label class="tog"><input type="checkbox" id="allowRot" checked><span></span>Allow 90° rotation</label>
+    </section>
+
+    <section class="nest-mode">
+      <div class="seg" id="nestMode"><button data-m="fill" class="on">Fill one sheet</button><button data-m="qty">Quantity run</button></div>
+      <div class="fld sm" id="setsFld" hidden><label>Sets to make</label><input id="sets" type="number" value="10" min="1"></div>
+      <span class="muted small" id="modeHint">How many of the selected parts fit on one sheet (keeps the assembly ratio when several parts are selected).</span>
+    </section>
+
+    <section class="nest-results" id="nestResults">
+      <div class="kpi big"><span>Parts per sheet</span><b id="kpiMain">—</b><small id="kpiMainSub"></small></div>
+      <div class="kpi"><span>Sheets</span><b id="kpiSheets">—</b><small id="kpiSheetsSub"></small></div>
+      <div class="kpi"><span>Material use</span><b id="kpiUtil">—</b><div class="bar"><i id="kpiUtilBar"></i></div></div>
+      <div class="kpi"><span>Blank area</span><b id="kpiArea">—</b><small id="kpiAreaSub"></small></div>
+      <button class="cta ghost" id="nestPng" disabled><svg viewBox="0 0 24 24"><path d="M12 4v12m0 0-5-5m5 5 5-5M4 20h16"/></svg>Save layout PNG</button>
+    </section>
+
+    <section class="sheets" id="sheets">
+      <div class="sheets-empty"><div class="drop-ico small"><img src="logo-cad.svg" width="56" height="56" alt=""></div><p>Select one or more flat blanks on the left to see how they nest.</p></div>
+    </section>
+    <p class="nest-foot">Rectangular blank nesting — a quick planning and benchmark estimate. True-shape nesting in your laser CAM software can usually fit a few more irregular parts.</p>
+  </main>
+</div>
+
+<script type="module" src="/src/main.ts"></script>
+</body>
+</html>
