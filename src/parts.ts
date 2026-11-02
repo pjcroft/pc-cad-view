@@ -8,7 +8,7 @@ import * as THREE from 'three';
 import { metaSummary, type MetaProp } from './importers';
 import { detectThickness, unfoldPart, type FlatResult } from './sheetmetal';
 
-export type Source = 'file' | 'auto' | 'manual';
+export type Source = 'file' | 'auto' | 'manual' | 'design';
 
 export interface PartType {
   id: string;
@@ -66,6 +66,7 @@ export function buildCatalog(meshes: readonly THREE.Mesh[]): PartType[] {
 }
 
 export function analysePart(p: PartType, kFactor: number) {
+  if (p.flatSource === 'design') { p.analysed = true; return; } // designed parts carry an exact flat pattern
   const rep = p.meshes[0];
   const sum = metaSummary(p.meta);
   if (sum.thickness) { p.thickness = sum.thickness; p.tSource = 'file'; }

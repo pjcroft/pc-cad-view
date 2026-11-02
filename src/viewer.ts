@@ -126,7 +126,8 @@ export class Viewer {
   }
 
   /* ---------------- model ---------------- */
-  setModel(root: THREE.Group) {
+  setModel(root: THREE.Group, keepView = false) {
+    const hadModel = !!this.model;
     this.clearModel();
     this.model = root;
     this.scene.add(root);
@@ -155,7 +156,12 @@ export class Viewer {
     this.buildEdges();
     this.buildGrid();
     this.setSection(this.sectionOn, this.sectionAxis, this.sectionPos, this.sectionFlip);
-    this.setView('iso', false);
+    if (!keepView || !hadModel) this.setView('iso', false);
+  }
+
+  /** Pause / resume rendering (e.g. while the screen holding this viewer is hidden). */
+  setActive(on: boolean) {
+    this.renderer.setAnimationLoop(on ? () => this.frame() : null);
   }
 
   clearModel() {

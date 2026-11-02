@@ -5,6 +5,9 @@ Files are processed in the visitor's browser; nothing is uploaded.
 
 ## Screenshots
 
+**Design: build a sheet metal part, see the flat pattern, export DXF**
+![Design screen](mockup/13-design-l-bracket.png)
+
 **3D view: sheet metal part with file properties (material, thickness, flat blank)**
 ![3D view with sheet metal data](mockup/2-3d-sheet-metal.png)
 
@@ -32,11 +35,21 @@ Files are processed in the visitor's browser; nothing is uploaded.
 </tr>
 <tr>
 <td><b>Loading dialog (240-part assembly)</b><br><img src="mockup/11-loading-dialog.png" alt="Loading dialog"></td>
+<td><b>Design: hat channel with returns</b><br><img src="mockup/14-design-hat-channel.png" alt="Hat channel"></td>
+</tr>
+<tr>
+<td><b>Designed part sent to Nesting</b><br><img src="mockup/15-design-to-nesting.png" alt="Design to nesting"></td>
 <td></td>
 </tr>
 </table>
 
 ## Features (v0.1)
+- **Sheet metal Design screen**: start from flat / L / U / Z / hat / C-channel / box-tray templates; set
+  thickness, inside radius, K-factor, relief and outside sizes; flanges on any edge (height, angle, up/down,
+  insets, optional inward/outward return); holes, slots and rectangular cutouts on the base or flanges;
+  live 3D + exact flat pattern (bend allowance θ·(r + K·t)) with UP/DOWN bend lines, blank size, area and
+  weight; **DXF export** (R12, layers CUT / BEND / NOTES, mm or inch); **Send to Nesting**; save / open
+  designs as **.pc3d** files (also opens from the Open button or by drag-and-drop)
 - Open **STEP / IGES / BREP** (OpenCascade WASM) and **STL / OBJ / glTF / 3MF**
 - Assembly tree + parts list with quantities; filter, show/hide, isolate
 - **Normal To** (look straight at a clicked face), **Face down / Face up** (re-orient the model so a face sits
@@ -61,6 +74,7 @@ npm run build      # -> dist/
 node --experimental-strip-types test/unfold.test.mts                          # unfold accuracy (mm parts)
 node --experimental-strip-types test/unfold.test.mts samples/inch-bracket.step # unfold accuracy (inch part)
 node --experimental-strip-types test/nest.test.mts     # nesting checks
+node --experimental-strip-types test/design.test.mts   # designer: flat blanks, 3D sizes, DXF
 ```
 
 ## Deploy on the Debian box (static files only)

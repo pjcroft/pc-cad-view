@@ -1,0 +1,94 @@
+{
+  "format": "pc3d",
+  "version": 1,
+  "app": "PC CAD View",
+  "saved": "2026-11-02T01:54:43.783Z",
+  "units": "mm",
+  "design": {
+    "name": "L-bracket",
+    "material": "Mild steel",
+    "t": 4,
+    "r": 3,
+    "k": 0.44,
+    "relief": 3,
+    "L": 100,
+    "W": 80,
+    "flanges": {
+      "front": {
+        "on": false,
+        "height": 40,
+        "angle": 90,
+        "dir": "up",
+        "inset0": 0,
+        "inset1": 0,
+        "ret": "none",
+        "retHeight": 15
+      },
+      "back": {
+        "on": true,
+        "height": 60,
+        "angle": 90,
+        "dir": "up",
+        "inset0": 0,
+        "inset1": 0,
+        "ret": "none",
+        "retHeight": 15
+      },
+      "left": {
+        "on": false,
+        "height": 40,
+        "angle": 90,
+        "dir": "up",
+        "inset0": 0,
+        "inset1": 0,
+        "ret": "none",
+        "retHeight": 15
+      },
+      "right": {
+        "on": false,
+        "height": 40,
+        "angle": 90,
+        "dir": "up",
+        "inset0": 0,
+        "inset1": 0,
+        "ret": "none",
+        "retHeight": 15
+      }
+    },
+    "cutouts": [
+      {
+        "id": 1,
+        "face": "base",
+        "type": "hole",
+        "x": 25,
+        "y": 35,
+        "d": 9,
+        "w": 20,
+        "h": 10,
+        "vertical": false
+      },
+      {
+        "id": 2,
+        "face": "base",
+        "type": "hole",
+        "x": 75,
+        "y": 35,
+        "d": 9,
+        "w": 20,
+        "h": 10,
+        "vertical": false
+      },
+      {
+        "id": 3,
+        "face": "back",
+        "type": "slot",
+        "x": 50,
+        "y": 38,
+        "d": 9,
+        "w": 30,
+        "h": 10,
+        "vertical": false
+      }
+    ]
+  }
+}

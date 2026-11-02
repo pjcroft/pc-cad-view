@@ -4,13 +4,14 @@ import { num, len, lenPrecise, uLabel, getUnit, setUnit, onUnit, convertProp, ty
 import { importFile, ACCEPT, metaSummary, type Quality, type FileHeader, type MetaProp } from './importers';
 import { buildCatalog, analyseAll, analysePart, isSheet, type PartType } from './parts';
 import { NestUI } from './nest-ui';
+import { DesignUI, PC3D_EXT } from './design/ui';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
 
 const viewer = new Viewer($('vp'));
 const fileIn = $<HTMLInputElement>('fileIn');
-fileIn.accept = ACCEPT;
+fileIn.accept = ACCEPT + ',.' + PC3D_EXT;
 
 let currentFile: File | null = null;
 let quality: Quality = 'normal';
@@ -22,14 +23,40 @@ const nest = new NestUI();
 nest.onCountChange = (n) => { $('nestBadge').hidden = n === 0; $('nestBadge').textContent = String(n); };
 const partOf = (m: THREE.Mesh) => catalog.find((p) => p.id === m.userData.partType);
 
+/* ---------------- sheet metal designer ---------------- */
+let designCount = 0;
+const DESIGN_COLORS = ['#fb923c', '#e879f9', '#facc15', '#2dd4bf', '#818cf8'];
+const design = new DesignUI({
+  toast: (m, ok) => toast(m, ok),
+  sendToNest: (d, flat, tri) => {
+    const p: PartType = {
+      id: `d${++designCount}`, name: d.name || 'Designed part', meshes: [], qty: 1,
+      swatch: '#bcc7d6', color: DESIGN_COLORS[(designCount - 1) % DESIGN_COLORS.length],
+      material: d.material, thickness: d.t, tSource: 'design',
+      flat: { x: tri.x, y: tri.y }, flatSource: 'design',
+      flatInfo: { x: tri.x, y: tri.y, area: flat.area, bends: flat.bends.length, thickness: d.t, outline: tri.tris, confidence: 'good' },
+      analysed: true, nest: true, perSet: 1, lockRot: false,
+    };
+    nest.addDesignPart(p);
+    setMode('nest');
+    toast(`${p.name} added to Nesting (${num(tri.x)} × ${num(tri.y)} ${uLabel()})`, true);
+  },
+});
+
 /* ---------------- mode switch ---------------- */
-function setMode(m: 'view' | 'nest') {
+type Mode = 'view' | 'design' | 'nest';
+let mode: Mode = 'view';
+function setMode(m: Mode) {
+  mode = m;
   $('modes').querySelectorAll<HTMLButtonElement>('button').forEach((b) => b.classList.toggle('on', b.dataset.mode === m));
   document.querySelector<HTMLElement>('.work')!.hidden = m !== 'view';
+  $('designScreen').hidden = m !== 'design';
   $('nestScreen').hidden = m !== 'nest';
+  viewer.setActive(m === 'view');   // only the visible 3D view renders
+  design.setActive(m === 'design');
   if (m === 'nest') nest.refresh();
 }
-$('modes').querySelectorAll<HTMLButtonElement>('button').forEach((b) => b.onclick = () => setMode(b.dataset.mode as 'view' | 'nest'));
+$('modes').querySelectorAll<HTMLButtonElement>('button').forEach((b) => b.onclick = () => setMode(b.dataset.mode as Mode));
 
 /* ---------------- open ---------------- */
 $('openBtn').onclick = $('openBtn2').onclick = () => fileIn.click();
@@ -107,6 +134,13 @@ const nextFrame = () => new Promise<void>((r) => requestAnimationFrame(() => req
 
 async function openFile(file: File) {
   if (busy.isOpen()) return;
+  // a saved sheet metal design opens in the Design screen
+  if (file.name.toLowerCase().endsWith('.' + PC3D_EXT)) {
+    if (viewer.model) $('drop').classList.add('hidden');
+    setMode('design');
+    await design.open(file);
+    return;
+  }
   currentFile = file;
   $('toast').hidden = true;
   busy.open(file, /\.(stp|step|igs|iges|brep|brp)$/i.test(file.name));
@@ -567,7 +601,7 @@ addEventListener('keydown', (e) => {
   // help overlay: ? opens/closes, Esc closes; nothing else fires while it's open
   if (k === '?') { setHelp($('help').hidden !== false); return; }
   if (!$('help').hidden) { if (k === 'escape') setHelp(false); return; }
-  if (!$('nestScreen').hidden && k !== 'n' && k !== 'o' && k !== 'u') return; // 3D shortcuts only in 3D view
+  if (mode !== 'view' && k !== 'n' && k !== 'o' && k !== 'u') return; // 3D shortcuts only in 3D view
   const views: Record<string, ViewName> = { '0': 'iso', '1': 'front', '3': 'right', '7': 'top', '9': 'bottom' };
   if (views[k]) return viewer.setView(views[k]);
   const click = (sel: string) => tb.querySelector<HTMLButtonElement>(sel)?.click();
@@ -582,7 +616,7 @@ addEventListener('keydown', (e) => {
   if (k === '8') faceTool('normal');
   if (k === 'd') faceTool('down');
   if (k === 'o') fileIn.click();
-  if (k === 'n') setMode($('nestScreen').hidden ? 'nest' : 'view');
+  if (k === 'n') setMode(mode === 'nest' ? 'view' : 'nest');
   if (k === 'u') setUnit(getUnit() === 'mm' ? 'in' : 'mm');
 });
 

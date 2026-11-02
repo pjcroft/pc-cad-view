@@ -21,6 +21,7 @@ function tint(hex: string, k = 0.55) {
 
 export class NestUI {
   private parts: PartType[] = [];
+  private designParts: PartType[] = [];  // parts sent from the Design screen (kept when a new model opens)
   private mode: 'fill' | 'qty' = 'fill';
   private previewId: string | null = null;
   private last: NestResult | null = null;
@@ -86,8 +87,19 @@ export class NestUI {
   kFactor() { return Math.min(1, Math.max(0, +$<HTMLInputElement>('kfac').value || 0.44)); }
 
   setParts(parts: PartType[]) {
-    this.parts = parts;
+    this.parts = [...parts, ...this.designParts];
     this.previewId = null;
+    this.renderTable();
+    this.schedule();
+  }
+
+  /** Add (or update, by name) a part designed on the Design screen, ticked for nesting. */
+  addDesignPart(p: PartType) {
+    const old = this.designParts.find((x) => x.name === p.name);
+    if (old) { p.id = old.id; p.perSet = old.perSet; p.color = old.color; p.lockRot = old.lockRot; }
+    this.designParts = [...this.designParts.filter((x) => x !== old), p];
+    this.parts = [...this.parts.filter((x) => x.flatSource !== 'design' || x.name !== p.name), p];
+    this.previewId = p.id;
     this.renderTable();
     this.schedule();
   }
@@ -115,14 +127,14 @@ export class NestUI {
     for (const p of list) {
       const row = document.createElement('div');
       row.className = 'nrow' + (p.nest ? ' on' : '') + (!p.analysed ? ' dim' : '');
-      const srcLbl = p.flatSource === 'file' ? 'from file' : p.flatSource === 'manual' ? 'manual' : p.flatInfo?.confidence === 'rough' ? 'rough unfold' : 'unfolded';
+      const srcLbl = p.flatSource === 'design' ? 'designed' : p.flatSource === 'file' ? 'from file' : p.flatSource === 'manual' ? 'manual' : p.flatInfo?.confidence === 'rough' ? 'rough unfold' : 'unfolded';
       const size = p.flat
         ? `<button class="szb" title="Click to edit">${r1(p.flat.x)} × ${r1(p.flat.y)}</button><small>${srcLbl}${p.flatInfo?.bends ? ` · ${p.flatInfo.bends} bend${p.flatInfo.bends > 1 ? 's' : ''}` : ''}</small>`
         : `<button class="szb" title="Enter blank size">${p.analysed ? 'enter size' : '…'}</button><small>${p.analysed ? 'not sheet metal?' : 'analysing'}</small>`;
       row.innerHTML = `
         <input type="checkbox" ${p.nest ? 'checked' : ''} ${p.flat ? '' : 'disabled'} title="Include in nest">
         <span class="sw" style="background:${p.nest ? p.color : p.swatch}"></span>
-        <span class="nm"><b title="${esc(p.name)}">${esc(p.name)}</b><small>${p.thickness ? `<span class="thk">t ${r1(p.thickness)} ${uLabel()}</span>` : ''}${p.material ? `<span class="mat" title="${esc(p.material)}">${esc(p.material)}</span>` : ''}<span>×${p.qty} in model</span></small></span>
+        <span class="nm"><b title="${esc(p.name)}">${esc(p.name)}</b><small>${p.thickness ? `<span class="thk">t ${r1(p.thickness)} ${uLabel()}</span>` : ''}${p.material ? `<span class="mat" title="${esc(p.material)}">${esc(p.material)}</span>` : ''}<span>${p.flatSource === 'design' ? 'from Design' : `×${p.qty} in model`}</span></small></span>
         <span class="sz">${size}</span>
         <input class="qin" type="number" min="1" value="${p.perSet}" title="Quantity per set">
         <button class="lock ${p.lockRot ? 'on' : ''}" title="${p.lockRot ? 'Rotation locked (grain direction)' : 'Allow rotation'}">${p.lockRot ? LOCK : UNLOCK}</button>`;
@@ -165,7 +177,7 @@ export class NestUI {
 
   private reUnfold() {
     const k = this.kFactor();
-    for (const p of this.parts) if (p.analysed && p.flatSource !== 'manual') analysePart(p, k);
+    for (const p of this.parts) if (p.analysed && p.flatSource !== 'manual' && p.flatSource !== 'design') analysePart(p, k);
     this.refresh();
   }
 
