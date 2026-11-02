@@ -216,6 +216,7 @@ export class Viewer {
     for (const m of this.meshes) {
       // Skip edge extraction on huge meshes (scanned STL etc.) — too slow and too busy to look at
       if (tris > 3_000_000) break;
+      if (m.userData.noEdges) continue;
       const e = new THREE.LineSegments(new THREE.EdgesGeometry(m.geometry, 28), lineMat);
       e.name = '__edges';
       e.raycast = () => {};

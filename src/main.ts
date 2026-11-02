@@ -164,7 +164,7 @@ async function openFile(file: File) {
     buildTree(res.root);
     showFileInfo(file, res.format, res.engine, performance.now() - t0, res.header);
     showSelection(null);
-    document.title = `${file.name} · PC CAD View`;
+    document.title = `${file.name} · PC 3D CAD`;
     // compile shaders and draw a frame so the model is on screen when the dialog closes
     try {
       const r = viewer.renderer;
@@ -621,4 +621,4 @@ addEventListener('keydown', (e) => {
 });
 
 // expose for automated checks / debugging
-(window as any).pccad = { viewer, openFile };
+(window as any).pccad = { viewer, openFile, design };

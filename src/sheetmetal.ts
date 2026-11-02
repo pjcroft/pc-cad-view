@@ -248,25 +248,29 @@ export function detectThickness(mesh: THREE.Mesh): number | null {
   const solo = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }));
   const rc = new THREE.Raycaster();
   const eps = size.length() * 1e-6;
-  const vals: number[] = [];
-  for (const { t } of cand.slice(0, 16)) {
+  const vals: { v: number; a: number }[] = [];
+  for (const { t, area } of cand.slice(0, 16)) {
     a.fromBufferAttribute(pos, vi(t, 0)); b.fromBufferAttribute(pos, vi(t, 1)); c.fromBufferAttribute(pos, vi(t, 2));
     const dir = b.clone().sub(a).cross(c.clone().sub(a)).normalize().negate();
     const cen = a.clone().add(b).add(c).divideScalar(3);
     rc.set(cen.addScaledVector(dir, eps), dir);
     const h = rc.intersectObject(solo, false).find((x) => x.distance > eps * 2);
-    if (h) vals.push(h.distance + eps);
+    if (h) vals.push({ v: h.distance + eps, a: area });
   }
   // cluster with a tolerance (not rounding buckets: values like 3.175 mm = 0.125" sit on rounding boundaries)
-  vals.sort((p, q) => p - q);
+  // votes are weighted by triangle area: a sheet's big faces agree, its thin edge strips don't count for much
+  vals.sort((p, q) => p.v - q.v);
   const n = vals.length;
-  let best: number | null = null, bestN = 0;
+  const totalA = vals.reduce((s, x) => s + x.a, 0) || 1;
+  let best: number | null = null, bestA = 0;
   for (let i = 0; i < n; i++) {
-    const tol = Math.max(0.01, vals[i] * 0.01);
-    let j = i;
-    while (j + 1 < n && vals[j + 1] - vals[i] <= tol) j++;
-    if (j - i + 1 > bestN) { bestN = j - i + 1; best = vals[(i + j) >> 1]; }
+    const tol = Math.max(0.01, vals[i].v * 0.01);
+    let j = i, a = 0;
+    while (j + 1 < n && vals[j + 1].v - vals[i].v <= tol) j++;
+    for (let k = i; k <= j; k++) a += vals[k].a;
+    if (a > bestA) { bestA = a; best = vals[(i + j) >> 1].v; }
   }
+  const bestN = (bestA / totalA) * n;
   if (best !== null) best = Math.round(best * 1000) / 1000;
   const dims = [size.x, size.y, size.z].sort((p, q) => p - q);
   return best !== null && n >= 4 && bestN / n >= 0.6 && best < dims[1] * 0.2 ? best : null;

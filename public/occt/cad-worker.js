@@ -1,4 +1,4 @@
-/* PC CAD View — B-rep import worker (STEP / IGES / BREP) using occt-import-js (OpenCascade WASM).
+/* PC 3D CAD — B-rep import worker (STEP / IGES / BREP) using occt-import-js (OpenCascade WASM).
    Runs off the main thread so big files don't freeze the page. Geometry is sent back as
    transferable typed arrays. */
 importScripts('occt-import-js.js', 'step-meta.js');

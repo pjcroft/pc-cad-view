@@ -3,12 +3,12 @@ import * as THREE from 'three';
 import { Viewer, type ViewName } from '../viewer';
 import { makeMaterial } from '../importers';
 import { num, uLabel, toDisp, fromDisp, area, inputStep, getUnit, onUnit } from '../units';
-import { build, flatTriangles, newDesign, flange, TEMPLATES, EDGES, polyArea, primPoly, type Design, type Edge, type Cutout, type CutType, type FlatPattern, type BuildResult } from './model';
+import { build, flatTriangles, newDesign, chain, seg, defaultHeight, upgradeV1, faceId, faceName, parseFace, TEMPLATES, EDGES, EDGE_NAME, polyArea, primPoly, type Design, type Edge, type Cutout, type CutType, type FlatPattern, type BuildResult, type EdgeHandle } from './model';
 import { flatToDxf } from './dxf';
+import type { SolidPiece } from './model';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
-const EDGE_NAME: Record<Edge, string> = { front: 'Front', back: 'Back', left: 'Left', right: 'Right' };
 const STORE = 'pccad.design.v1';
 export const PC3D_EXT = 'pc3d';
 
@@ -33,6 +33,10 @@ export class DesignUI {
   private timer = 0;
   private nextCutId = 1;
   private active = false;
+  private selFlange: { edge: Edge; seg: number } | null = null;
+  private hoverHandle: THREE.Mesh | null = null;
+  private hoverRaf = 0;
+  private handleClickAt = 0;
 
   constructor(private host: DesignHost) {
     this.d = this.restore() ?? TEMPLATES[1].make();
@@ -56,6 +60,7 @@ export class DesignUI {
       if (v === 'fit') this.viewer.fit(); else this.viewer.setView(v as ViewName);
     });
     $('dzDxf').onclick = () => this.exportDxf();
+    $('dzStep').onclick = () => this.exportStep();
     $('dzNest').onclick = () => { if (this.res && this.res.flat.loops.length) this.host.sendToNest(this.cloneDesign(), this.res.flat, flatTriangles(this.res.flat)); };
     $('dzSave').onclick = () => this.save();
     $('dzOpen').onclick = () => $('dzFile').click();
@@ -63,11 +68,33 @@ export class DesignUI {
     onUnit(() => { this.renderForm(); this.renderFlat(); });
   }
 
+  /** The Design screen's 3D viewer (for automated checks). */
+  get view() { return this.viewer; }
+
   /** Called when the Design screen is shown / hidden. */
   setActive(on: boolean) {
     this.active = on;
     if (on && !this.viewer) {
       this.viewer = new Viewer($('dzVp'));
+      this.viewer.onSelect = (p) => this.onPick(p?.mesh ?? null);
+      const canvas = this.viewer.renderer.domElement;
+      canvas.addEventListener('pointermove', (e) => {
+        cancelAnimationFrame(this.hoverRaf);
+        this.hoverRaf = requestAnimationFrame(() => this.onHover(e.clientX, e.clientY));
+      });
+      canvas.addEventListener('pointerleave', () => this.onHover(-1, -1));
+      // edge handles win over the part underneath: intercept the click before the viewer selects
+      let down = { x: 0, y: 0 };
+      canvas.addEventListener('pointerdown', (e) => { down = { x: e.clientX, y: e.clientY }; }, true);
+      canvas.addEventListener('pointerup', (e) => {
+        if (e.button !== 0 || Math.hypot(e.clientX - down.x, e.clientY - down.y) > 4) return;
+        const h = this.handleAt(e.clientX, e.clientY);
+        if (!h) return;
+        // don't stop the event: the orbit controls need this pointerup too. Just ignore the
+        // part selection the viewer makes right after (see onPick).
+        this.handleClickAt = performance.now();
+        this.addFlange(h.userData.edge as Edge);
+      }, true);
       this.rebuild(false);
     }
     this.viewer?.setActive(on);
@@ -103,44 +130,167 @@ export class DesignUI {
     this.renderCuts();
   }
 
+  private chainSummary(e: Edge) {
+    const segs = this.d.chains[e].segs;
+    if (!segs.length) return 'no flange — click its edge in 3D or ＋';
+    return segs.map((sg) => `${num(sg.height)}${sg.angle !== 90 ? ` ${sg.angle}°` : ''} ${sg.dir}`).join(' → ') + ` ${uLabel()}`;
+  }
+
   private renderFlanges() {
     const box = $('dzFlanges');
-    const u = uLabel(), st = inputStep(true);
+    const st = inputStep(true);
     box.innerHTML = EDGES.map((e) => {
-      const f = this.d.flanges[e];
-      return `<div class="fl ${f.on ? 'on' : ''}" data-e="${e}">
-        <div class="fl-h"><input type="checkbox" ${f.on ? 'checked' : ''}><b>${EDGE_NAME[e]}</b><small>${f.on ? `${num(f.height)} ${u} · ${f.angle}° ${f.dir}${f.ret !== 'none' ? ` · return ${f.ret}` : ''}` : 'no flange'}</small></div>
-        <div class="fl-grid">
-          <label>Height<input data-f="height" type="number" step="${st}" value="${this.lenVal(f.height)}"></label>
-          <label>Angle °<input data-f="angle" type="number" min="1" max="170" step="1" value="${f.angle}"></label>
-          <label>Direction<select data-f="dir"><option value="up" ${f.dir === 'up' ? 'selected' : ''}>Up</option><option value="down" ${f.dir === 'down' ? 'selected' : ''}>Down</option></select></label>
-          <label>Inset start<input data-f="inset0" type="number" min="0" step="${st}" value="${this.lenVal(f.inset0)}"></label>
-          <label>Inset end<input data-f="inset1" type="number" min="0" step="${st}" value="${this.lenVal(f.inset1)}"></label>
-          <label>Return<select data-f="ret"><option value="none" ${f.ret === 'none' ? 'selected' : ''}>None</option><option value="in" ${f.ret === 'in' ? 'selected' : ''}>Inward</option><option value="out" ${f.ret === 'out' ? 'selected' : ''}>Outward</option></select></label>
-          <label ${f.ret === 'none' ? 'hidden' : ''}>Return height<input data-f="retHeight" type="number" step="${st}" value="${this.lenVal(f.retHeight)}"></label>
-        </div></div>`;
+      const c = this.d.chains[e];
+      const rows = c.segs.map((sg, j) => {
+        const sel = this.selFlange && this.selFlange.edge === e && this.selFlange.seg === j;
+        return `<div class="seg-row${sel ? ' sel' : ''}" data-j="${j}">
+          <span class="seg-n" title="${j === 0 ? 'Bends off the base' : `Bends off flange ${j}`}">${j + 1}</span>
+          <label>Height<input data-s="height" type="number" step="${st}" value="${this.lenVal(sg.height)}"></label>
+          <label>Angle °<input data-s="angle" type="number" min="1" max="170" step="1" value="${sg.angle}"></label>
+          <label>Direction<select data-s="dir"><option value="up" ${sg.dir === 'up' ? 'selected' : ''}>Up</option><option value="down" ${sg.dir === 'down' ? 'selected' : ''}>Down</option></select></label>
+          <button class="x" data-del="${j}" title="Remove this flange">✕</button>
+        </div>`;
+      }).join('');
+      return `<div class="fl ${c.segs.length ? 'on' : ''}" data-e="${e}">
+        <div class="fl-h"><b>${EDGE_NAME[e]}</b><small>${esc(this.chainSummary(e))}</small><button class="fl-add" data-add="${e}" title="${c.segs.length ? 'Add a flange to the end of this chain' : 'Add a flange on this edge'}">＋</button></div>
+        ${c.segs.length ? `<div class="fl-body">${rows}
+          <div class="fl-insets">
+            <label>Inset start<input data-i="inset0" type="number" min="0" step="${st}" value="${this.lenVal(c.inset0)}"></label>
+            <label>Inset end<input data-i="inset1" type="number" min="0" step="${st}" value="${this.lenVal(c.inset1)}"></label>
+            <button class="sbtn" data-add="${e}">＋ Add flange to end</button>
+          </div></div>` : ''}
+      </div>`;
     }).join('');
     box.querySelectorAll<HTMLElement>('.fl').forEach((card) => {
       const e = card.dataset.e as Edge;
-      const f = this.d.flanges[e];
-      const cb = card.querySelector<HTMLInputElement>('.fl-h input')!;
-      card.querySelector<HTMLElement>('.fl-h')!.onclick = (ev) => { if (ev.target !== cb) cb.click(); };
-      cb.onchange = () => { f.on = cb.checked; this.renderFlanges(); this.schedule(); };
-      card.querySelectorAll<HTMLInputElement | HTMLSelectElement>('[data-f]').forEach((inp) => {
-        inp.addEventListener(inp.tagName === 'SELECT' ? 'change' : 'input', () => {
-          const key = inp.dataset.f!;
-          if (key === 'dir') f.dir = inp.value as 'up' | 'down';
-          else if (key === 'ret') { f.ret = inp.value as 'none' | 'in' | 'out'; this.renderFlanges(); }
-          else {
-            const v = +inp.value;
-            if (!Number.isFinite(v)) return;
-            (f as unknown as Record<string, number>)[key] = key === 'angle' ? v : fromDisp(v);
-          }
-          const sm = card.querySelector('.fl-h small');
-          if (sm) sm.textContent = `${num(f.height)} ${uLabel()} · ${f.angle}° ${f.dir}${f.ret !== 'none' ? ` · return ${f.ret}` : ''}`;
-          this.schedule();
+      const c = this.d.chains[e];
+      card.querySelectorAll<HTMLButtonElement>('[data-add]').forEach((b) => b.onclick = () => this.addFlange(e));
+      card.querySelectorAll<HTMLButtonElement>('[data-del]').forEach((b) => b.onclick = () => this.removeFlange(e, +b.dataset.del!));
+      card.querySelectorAll<HTMLElement>('.seg-row').forEach((row) => {
+        const j = +row.dataset.j!;
+        const sg = c.segs[j];
+        row.addEventListener('focusin', () => this.setSel({ edge: e, seg: j }, false));
+        row.querySelectorAll<HTMLInputElement | HTMLSelectElement>('[data-s]').forEach((inp) => {
+          inp.addEventListener(inp.tagName === 'SELECT' ? 'change' : 'input', () => {
+            const key = inp.dataset.s!;
+            if (key === 'dir') sg.dir = inp.value as 'up' | 'down';
+            else { const v = +inp.value; if (!Number.isFinite(v)) return; if (key === 'angle') sg.angle = v; else sg.height = fromDisp(v); }
+            const sm = card.querySelector('.fl-h small');
+            if (sm) sm.textContent = this.chainSummary(e);
+            this.schedule();
+          });
         });
       });
+      card.querySelectorAll<HTMLInputElement>('[data-i]').forEach((inp) => inp.addEventListener('input', () => {
+        const v = +inp.value; if (!Number.isFinite(v)) return;
+        c[inp.dataset.i as 'inset0' | 'inset1'] = fromDisp(v);
+        this.schedule();
+      }));
+    });
+  }
+
+  /** Add a flange on a free base edge, or on the free end of that edge's chain. */
+  private addFlange(e: Edge) {
+    const c = this.d.chains[e];
+    const prev = c.segs[c.segs.length - 1];
+    c.segs.push(seg(defaultHeight(this.d), prev ? prev.dir : 'up'));
+    this.selFlange = { edge: e, seg: c.segs.length - 1 };
+    this.renderFlanges();
+    this.renderCuts();
+    this.schedule();
+    this.scrollToSel();
+  }
+
+  private removeFlange(e: Edge, j: number) {
+    const c = this.d.chains[e];
+    c.segs.splice(j, 1);
+    // cutouts on that flange go; later flanges on the chain shift down one
+    this.d.cutouts = this.d.cutouts.filter((x) => x.face !== faceId(e, j)).map((x) => {
+      const pf = parseFace(x.face);
+      return pf && pf.edge === e && pf.seg > j ? { ...x, face: faceId(e, pf.seg - 1) } : x;
+    });
+    this.selFlange = null;
+    this.renderFlanges();
+    this.renderCuts();
+    this.schedule();
+  }
+
+  private setSel(sel: { edge: Edge; seg: number } | null, scroll = true) {
+    this.selFlange = sel;
+    document.querySelectorAll<HTMLElement>('#dzFlanges .seg-row').forEach((row) => {
+      const e = row.closest<HTMLElement>('.fl')!.dataset.e;
+      row.classList.toggle('sel', !!sel && sel.edge === e && sel.seg === +row.dataset.j!);
+    });
+    if (scroll) this.scrollToSel();
+  }
+
+  private scrollToSel() {
+    requestAnimationFrame(() => document.querySelector('#dzFlanges .seg-row.sel')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }));
+  }
+
+  /* ---------------- 3D: clickable edges ---------------- */
+  private onPick(mesh: THREE.Mesh | null) {
+    if (!mesh || performance.now() - this.handleClickAt < 250) return;
+    const u = mesh.userData;
+    if (u.handle) { this.addFlange(u.edge as Edge); return; }
+    if (u.kind === 'flange') this.setSel({ edge: u.edge, seg: u.seg });
+    else this.setSel(null, false);
+  }
+
+  private onHover(cx: number, cy: number) {
+    const tip = $('dzTip');
+    const m = cx < 0 ? null : this.handleAt(cx, cy);
+    if (m !== this.hoverHandle) {
+      if (this.hoverHandle) { const hm = this.hoverHandle.material as THREE.MeshBasicMaterial; hm.color.set('#22d3ee'); hm.opacity = 0.55; }
+      if (m) { const mm = m.material as THREE.MeshBasicMaterial; mm.color.set('#fbbf24'); mm.opacity = 0.95; }
+      this.hoverHandle = m;
+    }
+    if (this.viewer) this.viewer.renderer.domElement.style.cursor = m ? 'pointer' : '';
+    if (!m) { tip.hidden = true; return; }
+    const r = $('dzVp').getBoundingClientRect();
+    const edge = m.userData.edge as Edge;
+    const n = this.d.chains[edge].segs.length;
+    tip.textContent = n ? `＋ Add flange ${n + 1} to the ${EDGE_NAME[edge].toLowerCase()} chain` : `＋ Add a flange on the ${EDGE_NAME[edge].toLowerCase()} edge`;
+    tip.style.transform = `translate(${cx - r.left + 14}px, ${cy - r.top + 14}px)`;
+    tip.hidden = false;
+  }
+
+  /** The edge handle under the cursor: nearest on screen within ~12 px (handles are thin; this makes them easy to hit). */
+  private handleAt(cx: number, cy: number): THREE.Mesh | null {
+    const v = this.viewer;
+    if (!v || !v.model) return null;
+    const r = v.renderer.domElement.getBoundingClientRect();
+    const scr = (p: THREE.Vector3) => { const q = p.clone().project(v.camera); return { x: r.left + (q.x + 1) / 2 * r.width, y: r.top + (1 - q.y) / 2 * r.height, z: q.z }; };
+    let best: THREE.Mesh | null = null, bestD = 12;
+    v.model.traverse((o) => {
+      const m = o as THREE.Mesh;
+      if (!m.userData.handle) return;
+      const a = scr(m.userData.a), b = scr(m.userData.b);
+      if (a.z > 1 || b.z > 1) return; // behind the camera
+      const dx = b.x - a.x, dy = b.y - a.y, L2 = dx * dx + dy * dy || 1;
+      const t = Math.max(0, Math.min(1, ((cx - a.x) * dx + (cy - a.y) * dy) / L2));
+      const d = Math.hypot(cx - (a.x + t * dx), cy - (a.y + t * dy));
+      if (d < bestD) { bestD = d; best = m; }
+    });
+    return best;
+  }
+
+  /** Glowing cylinders along every edge that can take a new flange (drawn on top so far edges stay visible). */
+  private handleMeshes(hs: EdgeHandle[]): THREE.Mesh[] {
+    const size = Math.max(this.d.L, this.d.W);
+    const rad = Math.max(this.d.t * 0.9, size * 0.007);
+    return hs.map((h) => {
+      const len = h.a.distanceTo(h.b);
+      const g = new THREE.CylinderGeometry(rad, rad, len, 12, 1);
+      const mat = new THREE.MeshBasicMaterial({ color: '#22d3ee', transparent: true, opacity: 0.55, depthWrite: false, depthTest: false });
+      const mesh = new THREE.Mesh(g, mat);
+      mesh.position.copy(h.a).add(h.b).multiplyScalar(0.5);
+      mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), h.b.clone().sub(h.a).normalize());
+      mesh.name = `Add flange (${EDGE_NAME[h.edge]})`;
+      Object.assign(mesh.userData, { handle: true, noEdges: true, edge: h.edge, seg: h.seg, a: h.a.clone(), b: h.b.clone() });
+      mesh.raycast = () => {}; // picked by screen distance instead (see handleAt)
+      mesh.renderOrder = 3;
+      return mesh;
     });
   }
 
@@ -156,7 +306,8 @@ export class DesignUI {
     const box = $('dzCuts');
     const st = inputStep(true);
     if (!this.d.cutouts.length) { box.innerHTML = '<p class="dz-hint" style="margin-top:0">No cutouts yet.</p>'; return; }
-    const faceOpts = (sel: string) => ['base', ...EDGES].map((f) => `<option value="${f}" ${f === sel ? 'selected' : ''}>${f === 'base' ? 'Base' : EDGE_NAME[f as Edge] + ' flange'}</option>`).join('');
+    const faces = ['base', ...EDGES.flatMap((e) => this.d.chains[e].segs.map((_, j) => faceId(e, j)))];
+    const faceOpts = (sel: string) => [...faces, ...(faces.includes(sel) ? [] : [sel])].map((f) => `<option value="${f}" ${f === sel ? 'selected' : ''}>${esc(faceName(f))}${faces.includes(f) ? '' : ' (missing)'}</option>`).join('');
     box.innerHTML = this.d.cutouts.map((c) => {
       const L = (k: 'x' | 'y' | 'd' | 'w' | 'h', label: string) => `<label>${label}<input data-c="${k}" type="number" step="${st}" value="${this.lenVal(c[k])}"></label>`;
       const sizes = c.type === 'hole' ? L('d', 'Ø') + '<span></span>'
@@ -166,10 +317,8 @@ export class DesignUI {
         <span class="cut-ico">#${c.id} ${c.type === 'rect' ? 'cutout' : c.type}</span>
         <span>${c.type === 'slot' ? `<label class="tog" style="padding:0;font-size:.74rem"><input type="checkbox" data-c="vertical" ${c.vertical ? 'checked' : ''}><span></span>Runs along Y</label>` : ''}</span>
         <button class="x" title="Remove">✕</button>
-        <div class="cut-grid">
-          <label>Face<select data-c="face">${faceOpts(c.face)}</select></label>
-          ${L('x', 'X')}${L('y', 'Y')}${sizes}
-        </div></div>`;
+        <div class="cut-face"><label>Face<select data-c="face">${faceOpts(c.face)}</select></label></div>
+        <div class="cut-grid">${L('x', 'X')}${L('y', 'Y')}${sizes}</div></div>`;
     }).join('');
     box.querySelectorAll<HTMLElement>('.cut').forEach((row) => {
       const c = this.d.cutouts.find((x) => x.id === +row.dataset.id!)!;
@@ -188,10 +337,11 @@ export class DesignUI {
 
   /** Centre a cutout on its new face. */
   private defaultPos(c: Cutout) {
-    if (c.face === 'base') { c.x = this.d.L / 2; c.y = this.d.W / 2; return; }
-    const f = this.d.flanges[c.face];
-    c.x = (c.face === 'front' || c.face === 'back' ? this.d.L : this.d.W) / 2;
-    c.y = f.height / 2 + (this.d.r + this.d.t) / 2;
+    const pf = parseFace(c.face);
+    if (!pf) { c.x = this.d.L / 2; c.y = this.d.W / 2; return; }
+    const sg = this.d.chains[pf.edge].segs[pf.seg];
+    c.x = (pf.edge === 'front' || pf.edge === 'back' ? this.d.L : this.d.W) / 2;
+    c.y = (sg?.height ?? defaultHeight(this.d)) / 2;
   }
 
   /* ---------------- build + draw ---------------- */
@@ -203,6 +353,9 @@ export class DesignUI {
 
   private rebuild(keepView: boolean) {
     this.res = build(this.d, new THREE.Color(0.74, 0.78, 0.84), makeMaterial);
+    for (const h of this.handleMeshes(this.res.handles)) this.res.group.add(h);
+    this.hoverHandle = null;
+    $('dzTip').hidden = true;
     if (this.viewer && this.active) this.viewer.setModel(this.res.group, keepView);
     this.renderFlat();
     const w = this.res.warnings;
@@ -215,6 +368,7 @@ export class DesignUI {
     });
     const okFlat = !!this.res.flat.loops.length;
     $<HTMLButtonElement>('dzDxf').disabled = !okFlat;
+    $<HTMLButtonElement>('dzStep').disabled = !okFlat || !!this.stepBusy;
     $<HTMLButtonElement>('dzNest').disabled = !okFlat;
   }
 
@@ -273,8 +427,37 @@ export class DesignUI {
     this.host.toast(`DXF exported in ${inches ? 'inches' : 'mm'}`, true);
   }
 
+  private stepBusy = false;
+
+  /** Folded part → STEP solid. Loads the modelling engine on first use. */
+  private async exportStep() {
+    if (!this.res || !this.res.flat.loops.length || this.stepBusy) return;
+    const btn = $<HTMLButtonElement>('dzStep');
+    const label = btn.innerHTML;
+    const solids: SolidPiece[] = this.res.solids;
+    const name = this.d.name, inches = getUnit() === 'in';
+    this.stepBusy = true; btn.disabled = true;
+    try {
+      const { loadCad, buildStep } = await import('./step');
+      const first = !this.stepReady;
+      if (first) btn.innerHTML = '<span class="mini-spin"></span>Loading STEP engine…';
+      const R = await loadCad();
+      this.stepReady = true;
+      btn.innerHTML = '<span class="mini-spin"></span>Building solid…';
+      await new Promise((r) => setTimeout(r, 30)); // let the label paint
+      const step = await buildStep(R, solids, name, inches);
+      this.download(`${this.fileBase()}.stp`, step, 'model/step');
+      this.host.toast(`STEP exported (${inches ? 'inches' : 'mm'}) — one solid body`, true);
+    } catch (e) {
+      this.host.toast(`STEP export failed: ${(e as Error).message || e}`);
+    } finally {
+      this.stepBusy = false; btn.disabled = false; btn.innerHTML = label;
+    }
+  }
+  private stepReady = false;
+
   private save() {
-    const doc = { format: 'pc3d', version: 1, app: 'PC CAD View', saved: new Date().toISOString(), units: 'mm', design: this.d };
+    const doc = { format: 'pc3d', version: 2, app: 'PC 3D CAD', saved: new Date().toISOString(), units: 'mm', design: this.d };
     this.download(`${this.fileBase()}.${PC3D_EXT}`, JSON.stringify(doc, null, 2), 'application/x-pc3d+json');
     this.host.toast(`Saved ${this.fileBase()}.${PC3D_EXT}`, true);
   }
@@ -283,8 +466,8 @@ export class DesignUI {
   async open(file: File) {
     try {
       const doc = JSON.parse(await file.text());
-      if (!doc || doc.format !== 'pc3d' || typeof doc.design !== 'object') throw new Error('not a PC CAD View design');
-      if (doc.version > 1) this.host.toast('This design was saved by a newer version — some settings may be ignored.');
+      if (!doc || doc.format !== 'pc3d' || typeof doc.design !== 'object') throw new Error('not a PC 3D CAD design');
+      if (doc.version > 2) this.host.toast('This design was saved by a newer version — some settings may be ignored.');
       this.d = normalise(doc.design);
       this.nextCutId = Math.max(0, ...this.d.cutouts.map((c) => c.id)) + 1;
       $('dzTemplates').querySelectorAll('button').forEach((x) => x.classList.remove('on'));
@@ -307,22 +490,27 @@ export class DesignUI {
 }
 
 /** Fill in anything missing from an older / hand-edited design, and drop junk. */
-function normalise(x: Partial<Design>): Design {
+function normalise(x0: Partial<Design>): Design {
+  const x = JSON.parse(JSON.stringify(x0 ?? {})) as Partial<Design>;
+  upgradeV1(x as Record<string, unknown>); // designs saved before flange chains
   const d = newDesign();
   const n = (v: unknown, dflt: number) => (typeof v === 'number' && Number.isFinite(v) ? v : dflt);
   d.name = typeof x.name === 'string' ? x.name : d.name;
   d.material = typeof x.material === 'string' ? x.material : d.material;
   d.t = n(x.t, d.t); d.r = n(x.r, d.r); d.k = n(x.k, d.k); d.relief = n(x.relief, d.relief); d.L = n(x.L, d.L); d.W = n(x.W, d.W);
   for (const e of EDGES) {
-    const f = (x.flanges?.[e] ?? {}) as Partial<Design['flanges'][Edge]>;
-    const b = flange();
-    d.flanges[e] = {
-      on: !!f.on, height: n(f.height, b.height), angle: n(f.angle, 90), dir: f.dir === 'down' ? 'down' : 'up',
-      inset0: n(f.inset0, 0), inset1: n(f.inset1, 0), ret: f.ret === 'in' || f.ret === 'out' ? f.ret : 'none', retHeight: n(f.retHeight, b.retHeight),
-    };
+    const c = (x.chains?.[e] ?? {}) as Partial<Design['chains'][Edge]>;
+    const out = chain();
+    out.inset0 = n(c.inset0, 0); out.inset1 = n(c.inset1, 0);
+    for (const sg of Array.isArray(c.segs) ? c.segs : []) {
+      if (!sg) continue;
+      out.segs.push(seg(n(sg.height, 40), sg.dir === 'down' ? 'down' : 'up', n(sg.angle, 90)));
+    }
+    d.chains[e] = out;
   }
   d.cutouts = (Array.isArray(x.cutouts) ? x.cutouts : []).filter((c) => c && ['hole', 'slot', 'rect'].includes(c.type)).map((c, i) => ({
-    id: n(c.id, i + 1), face: (['base', ...EDGES] as string[]).includes(c.face) ? c.face : 'base', type: c.type,
+    id: n(c.id, i + 1),
+    face: c.face === 'base' || parseFace(String(c.face)) ? String(c.face) : 'base', type: c.type,
     x: n(c.x, 0), y: n(c.y, 0), d: n(c.d, 10), w: n(c.w, 30), h: n(c.h, 20), vertical: !!c.vertical,
   }));
   return d;

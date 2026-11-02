@@ -1,4 +1,4 @@
-/* PC CAD View — STEP metadata reader.
+/* PC 3D CAD — STEP metadata reader.
    Pulls per-part properties that OpenCascade's mesher ignores: material, density, thickness,
    SolidWorks/Inventor custom properties ("user defined attributes"), plus the file header
    (originating CAD system, author, date). Pure JS, runs inside the import worker.

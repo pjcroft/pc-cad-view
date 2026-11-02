@@ -1,12 +1,12 @@
-# PC CAD View
+# PC 3D CAD
 
-Browser-based 3D CAD viewer for the pjcroft web tools, aimed at sheet metal assemblies.
+Browser-based 3D CAD viewer and sheet metal designer for the pjcroft web tools.
 Files are processed in the visitor's browser; nothing is uploaded.
 
 ## Screenshots
 
-**Design: build a sheet metal part, see the flat pattern, export DXF**
-![Design screen](mockup/13-design-l-bracket.png)
+**Design: click any cyan edge to add a flange; flat pattern, DXF and STEP export**
+![Design screen](mockup/17-design-built-by-clicking.png)
 
 **3D view: sheet metal part with file properties (material, thickness, flat blank)**
 ![3D view with sheet metal data](mockup/2-3d-sheet-metal.png)
@@ -39,16 +39,22 @@ Files are processed in the visitor's browser; nothing is uploaded.
 </tr>
 <tr>
 <td><b>Designed part sent to Nesting</b><br><img src="mockup/15-design-to-nesting.png" alt="Design to nesting"></td>
-<td></td>
+<td><b>Exported STEP reopened: one solid, recognised as sheet metal</b><br><img src="mockup/19-step-reopened.png" alt="STEP reopened"></td>
+</tr>
+<tr>
+<td><b>Hover an edge to add a flange</b><br><img src="mockup/16-design-click-edge.png" alt="Click an edge"></td>
+<td><b>L-bracket template</b><br><img src="mockup/13-design-l-bracket.png" alt="L-bracket"></td>
 </tr>
 </table>
 
 ## Features (v0.1)
-- **Sheet metal Design screen**: start from flat / L / U / Z / hat / C-channel / box-tray templates; set
-  thickness, inside radius, K-factor, relief and outside sizes; flanges on any edge (height, angle, up/down,
-  insets, optional inward/outward return); holes, slots and rectangular cutouts on the base or flanges;
+- **Sheet metal Design screen**: start from flat / L / U / Z / hat / C-channel / box-tray templates, then
+  **click any cyan edge in 3D to add a flange** — on a base edge or on the free end of another flange, as
+  many as you like (each with its own height, angle, up/down); thickness, inside radius, K-factor, relief,
+  outside sizes and insets; holes, slots and rectangular cutouts on the base or any flange;
   live 3D + exact flat pattern (bend allowance θ·(r + K·t)) with UP/DOWN bend lines, blank size, area and
-  weight; **DXF export** (R12, layers CUT / BEND / NOTES, mm or inch); **Send to Nesting**; save / open
+  weight; **DXF export** (R12, layers CUT / BEND / NOTES, mm or inch); **STEP export** of the folded part as
+  one exact solid (planes + cylinders; engine loads on first use); **Send to Nesting**; save / open
   designs as **.pc3d** files (also opens from the Open button or by drag-and-drop)
 - Open **STEP / IGES / BREP** (OpenCascade WASM) and **STL / OBJ / glTF / 3MF**
 - Assembly tree + parts list with quantities; filter, show/hide, isolate
@@ -74,7 +80,8 @@ npm run build      # -> dist/
 node --experimental-strip-types test/unfold.test.mts                          # unfold accuracy (mm parts)
 node --experimental-strip-types test/unfold.test.mts samples/inch-bracket.step # unfold accuracy (inch part)
 node --experimental-strip-types test/nest.test.mts     # nesting checks
-node --experimental-strip-types test/design.test.mts   # designer: flat blanks, 3D sizes, DXF
+node --experimental-strip-types test/design.test.mts   # designer: flat blanks, 3D sizes, chains, DXF
+node --experimental-strip-types test/step.test.mts     # STEP export: one solid, size, re-unfolds to the same flat
 ```
 
 ## Deploy on the Debian box (static files only)
@@ -92,4 +99,6 @@ so it works from any sub-folder. Add a card to the tools home page linking to `p
 ## Limits
 - SolidWorks / NX / Creo / CATIA native files need a server-side converter (planned); export STEP for now.
 - Unfold is an estimate (straight bends, no reliefs/bend tables); file flat-pattern properties win when present.
+- Design: rectangular base with flange chains on its four edges (no flanges on flange side edges, no
+  free-form sketching); open-corner reliefs; K-factor bend allowance.
 - Nesting packs rectangles; true-shape CAM nesting can fit a few more irregular parts.

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>PC CAD View</title>
+<title>PC 3D CAD</title>
 <link rel="icon" type="image/svg+xml" href="logo-cad.svg">
 <link rel="stylesheet" href="/src/style.css">
 </head>
@@ -13,7 +13,7 @@
 <header>
   <a class="back" href="../" title="All pjcroft tools">&larr; Tools</a>
   <img class="hlogo" src="logo-cad.svg" width="30" height="30" alt="">
-  <h1>PC <span>CAD View</span> <small>v0.1</small></h1>
+  <h1>PC <span>3D CAD</span> <small>v0.1</small></h1>
   <nav class="modes" id="modes">
     <button data-mode="view" class="on"><svg viewBox="0 0 24 24"><path d="M12 3 20 7.5v9L12 21l-8-4.5v-9z"/><path d="M12 12l8-4.5M12 12 4 7.5M12 12v9"/></svg>3D view</button>
     <button data-mode="design"><svg viewBox="0 0 24 24"><path d="M4 18h16M4 18V9l4-3h8l4 3v9"/><path d="M8 6v12M16 6v12" opacity=".5"/></svg>Design</button>
@@ -104,7 +104,7 @@
         <p>or <button class="link" id="openBtn2">browse your files</button></p>
         <div class="chips">
           <span class="chip b">STEP</span><span class="chip b">IGES</span><span class="chip b">BREP</span>
-          <span class="chip">STL</span><span class="chip">OBJ</span><span class="chip">glTF</span><span class="chip">3MF</span><span class="chip d" title="PC CAD View sheet metal design">PC3D</span>
+          <span class="chip">STL</span><span class="chip">OBJ</span><span class="chip">glTF</span><span class="chip">3MF</span><span class="chip d" title="PC 3D CAD sheet metal design">PC3D</span>
         </div>
         <p class="soon">SolidWorks, NX, Creo &amp; CATIA files: coming with the converter. For now, save as STEP.</p>
       </div>
@@ -184,7 +184,7 @@
           <button class="sbtn" data-add="slot">＋ Slot</button>
           <button class="sbtn" data-add="rect">＋ Cutout</button>
         </div>
-        <p class="dz-hint">Positions are centres. Base: X from the left edge, Y from the front edge. Flange: X along the edge, Y = height from the base's outside face.</p>
+        <p class="dz-hint">Positions are centres. Base: X from the left edge, Y from the front edge. Flange: X along the edge, Y = distance along the flange from its bend (for the first flange, the height above the base).</p>
       </section>
     </div>
   </aside>
@@ -195,6 +195,8 @@
       <button data-dzv="fit" title="Fit">Fit</button><button data-dzv="iso" title="Isometric">Iso</button><button data-dzv="top" title="Top">Top</button><button data-dzv="front" title="Front">Front</button><button data-dzv="right" title="Right">Right</button>
     </div>
     <div class="dz-warn" id="dzWarn" hidden></div>
+    <div class="dz-tip" id="dzTip" hidden></div>
+    <div class="dz-help">Click a <b>cyan edge</b> to add a flange · click a flange to edit it</div>
   </main>
 
   <aside class="dz-out panel">
@@ -206,13 +208,14 @@
     <section class="card dz-actions">
       <h3>Output</h3>
       <button class="cta" id="dzDxf"><svg viewBox="0 0 24 24"><path d="M12 4v12m0 0-5-5m5 5 5-5M4 20h16"/></svg>Export DXF</button>
+      <button class="sbtn dz-step" id="dzStep" title="3D solid for SolidWorks, Inventor, Fusion…"><svg viewBox="0 0 24 24"><path d="M12 3 20 7.5v9L12 21l-8-4.5v-9z"/><path d="M12 12l8-4.5M12 12 4 7.5M12 12v9"/></svg>Export STEP (.stp)</button>
       <button class="sbtn acc" id="dzNest">Send to Nesting →</button>
       <div class="dz-file">
         <button class="sbtn" id="dzSave" title="Save this design as a .pc3d file">Save .pc3d</button>
         <button class="sbtn" id="dzOpen" title="Open a .pc3d design file">Open .pc3d</button>
         <input type="file" id="dzFile" accept=".pc3d" hidden>
       </div>
-      <p class="dz-hint">DXF layers: CUT (outline &amp; holes), BEND (dashed bend lines), NOTES. Exported in the current units.</p>
+      <p class="dz-hint">DXF: flat pattern with layers CUT, BEND (dashed), NOTES. STEP: the folded part as one solid. Both use the current units. The STEP engine (~7 MB compressed) downloads the first time you use it.</p>
     </section>
   </aside>
 </div>
