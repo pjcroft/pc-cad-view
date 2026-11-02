@@ -20,6 +20,7 @@
   </nav>
   <div class="sp"></div>
   <div class="seg units" id="units" title="Display units (U)"><button data-u="mm">mm</button><button data-u="in">inch</button></div>
+  <button class="ibtn helpbtn" id="helpBtn" title="Shortcuts &amp; controls (?)"><svg viewBox="0 0 24 24"><rect x="2.5" y="6" width="19" height="12" rx="2"/><path d="M6 10h1M9.5 10h1M13 10h1M16.5 10h1M7 14h10"/></svg><b>?</b></button>
   <span class="priv"><i></i>Files stay in your browser</span>
   <button class="cta" id="openBtn"><svg viewBox="0 0 24 24"><path d="M4 20h16M12 4v12m0-12-5 5m5-5 5 5"/></svg>Open model</button>
   <input type="file" id="fileIn" hidden>
@@ -219,6 +220,30 @@
     </section>
     <p class="nest-foot">Rectangular blank nesting — a quick planning and benchmark estimate. True-shape nesting in your laser CAM software can usually fit a few more irregular parts.</p>
   </main>
+</div>
+
+<!-- ============ keyboard / mouse help ============ -->
+<div class="help" id="help" hidden>
+  <div class="help-card" role="dialog" aria-modal="true" aria-labelledby="helpTitle">
+    <div class="help-h">
+      <h2 id="helpTitle">Shortcuts &amp; controls</h2>
+      <button class="ibtn" id="helpClose" title="Close (Esc)"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+    </div>
+    <div class="help-grid">
+      <section><h3>General</h3><dl><dt><kbd>O</kbd></dt><dd>Open a model</dd><dt><kbd>N</kbd></dt><dd>3D view ⇄ Nesting</dd><dt><kbd>U</kbd></dt><dd>mm ⇄ inch</dd><dt><kbd>?</kbd></dt><dd>This help</dd><dt><kbd>Esc</kbd></dt><dd>Cancel tool · clear selection</dd></dl></section><section><h3>Views</h3><dl><dt><kbd>F</kbd></dt><dd>Fit whole model</dd><dt><kbd>0</kbd></dt><dd>Isometric</dd><dt><kbd>1</kbd></dt><dd>Front</dd><dt><kbd>3</kbd></dt><dd>Right</dd><dt><kbd>7</kbd></dt><dd>Top</dd><dt><kbd>9</kbd></dt><dd>Bottom</dd></dl></section><section><h3>Orientation</h3><dl><dt><kbd>8</kbd></dt><dd>Normal To — look straight at a face</dd><dt><kbd>D</kbd></dt><dd>Face down — put a face on the floor (flanges up)</dd></dl></section><section><h3>Tools &amp; display</h3><dl><dt><kbd>S</kbd></dt><dd>Section plane</dd><dt><kbd>V</kbd></dt><dd>Explode</dd><dt><kbd>M</kbd></dt><dd>Measure</dd><dt><kbd>E</kbd></dt><dd>Edges</dd><dt><kbd>W</kbd></dt><dd>Wireframe</dd><dt><kbd>X</kbd></dt><dd>X-ray</dd></dl></section>
+      <section class="wide"><h3>Mouse &amp; trackpad</h3>
+        <table>
+          <tr><th></th><th>Mouse</th><th>MacBook trackpad</th></tr>
+          <tr><td>Rotate</td><td>Left-drag</td><td>Click + drag</td></tr>
+          <tr><td>Pan</td><td>Right-drag or <kbd>Shift</kbd>+drag</td><td><kbd>Shift</kbd> or <kbd>⌘</kbd> + click + drag</td></tr>
+          <tr><td>Zoom</td><td>Scroll wheel</td><td>Pinch or two-finger swipe</td></tr>
+          <tr><td>Centre on point</td><td colspan="2">Double-click a part</td></tr>
+          <tr><td>Fit model</td><td colspan="2">Double-click empty space</td></tr>
+          <tr><td>Select / isolate</td><td colspan="2">Click a part · double-click it in the tree to isolate</td></tr>
+        </table></section>
+    </div>
+    <p class="help-foot">Shortcuts pause while you type in a box. On the Nesting screen only <kbd>N</kbd> <kbd>O</kbd> <kbd>U</kbd> <kbd>?</kbd> are active.</p>
+  </div>
 </div>
 
 <script type="module" src="/src/main.ts"></script>

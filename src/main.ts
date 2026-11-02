@@ -466,11 +466,23 @@ onUnit(() => {
 });
 paintUnits();
 
+/* shortcuts help */
+function setHelp(open: boolean) {
+  $('help').hidden = !open;
+  if (open) $('helpClose').focus();
+}
+$('helpBtn').onclick = () => setHelp(true);
+$('helpClose').onclick = () => setHelp(false);
+$('help').addEventListener('click', (e) => { if (e.target === $('help')) setHelp(false); });
+
 /* keyboard */
 addEventListener('keydown', (e) => {
   const tgt = e.target as HTMLInputElement;
   if ((tgt.tagName === 'INPUT' && tgt.type !== 'range') || e.ctrlKey || e.metaKey || e.altKey) return;
   const k = e.key.toLowerCase();
+  // help overlay: ? opens/closes, Esc closes; nothing else fires while it's open
+  if (k === '?') { setHelp($('help').hidden !== false); return; }
+  if (!$('help').hidden) { if (k === 'escape') setHelp(false); return; }
   if (!$('nestScreen').hidden && k !== 'n' && k !== 'o' && k !== 'u') return; // 3D shortcuts only in 3D view
   const views: Record<string, ViewName> = { '0': 'iso', '1': 'front', '3': 'right', '7': 'top', '9': 'bottom' };
   if (views[k]) return viewer.setView(views[k]);
